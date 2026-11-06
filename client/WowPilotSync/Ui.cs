@@ -66,6 +66,7 @@ public static class Program {
         if (opt.TryGetValue("token", out v)) cfg.Token = v;
         if (opt.TryGetValue("wow", out v)) cfg.WowPath = v;
         if (opt.ContainsKey("no-chatlog")) cfg.NoChatLog = true;
+        if (opt.ContainsKey("chat")) cfg.SendChat = true;
         if (opt.ContainsKey("keep")) cfg.KeepScreenshots = true;
         cfg.Normalize();
         if (!cfg.Complete) { Console.Error.WriteLine("uso: WowPilotSync.exe --once --server URL --token TOKEN"); return 1; }
@@ -448,7 +449,7 @@ public class MainForm : Form {
 public class SettingsForm : Form {
     public Config Result;
     readonly TextBox server = new TextBox(), token = new TextBox(), wow = new TextBox();
-    readonly CheckBox showToken = new CheckBox(), autoStart = new CheckBox(), chatLog = new CheckBox(), keep = new CheckBox();
+    readonly CheckBox showToken = new CheckBox(), autoStart = new CheckBox(), chat = new CheckBox(), chatLog = new CheckBox(), keep = new CheckBox();
     readonly Label status = new Label();
     readonly Button test, save;
     readonly Config start;
@@ -465,7 +466,7 @@ public class SettingsForm : Form {
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.CenterParent;
         BackColor = Color.White;
-        ClientSize = new Size(560, 400);
+        ClientSize = new Size(560, 428);
 
         var intro = new Label {
             Text = "Conecte este PC ao seu dashboard. O token é gerado na página Configurar do site.",
@@ -500,18 +501,22 @@ public class SettingsForm : Form {
 
         autoStart.Text = "Iniciar com o Windows (fica só o ícone perto do relógio)";
         autoStart.Checked = Integration.AutoStart || string.IsNullOrEmpty(c.Token);
-        chatLog.Text = "Enviar o chat log do jogo (recupera mensagens escondidas em combate)";
+        chat.Text = "Enviar as mensagens do chat (sussurros, grupo, guilda…)";
+        chat.Checked = c.SendChat;
+        chatLog.Text = "Incluir o chat log do jogo (Retail: recupera o que o jogo esconde em combate)";
         chatLog.Checked = !c.NoChatLog;
+        chatLog.Enabled = chat.Checked;
+        chat.CheckedChanged += (s, e) => chatLog.Enabled = chat.Checked;
         keep.Text = "Manter os prints do código depois de enviar";
         keep.Checked = c.KeepScreenshots;
         int y = 176;
-        foreach (CheckBox cb in new[] { autoStart, chatLog, keep }) {
+        foreach (CheckBox cb in new[] { autoStart, chat, chatLog, keep }) {
             cb.AutoSize = true;
-            cb.Location = new Point(150, y);
+            cb.Location = new Point(cb == chatLog ? 170 : 150, y);
             y += 28;
         }
 
-        status.SetBounds(150, 264, 390, 44);
+        status.SetBounds(150, 292, 390, 44);
         status.ForeColor = Theme.Muted;
 
         var bar = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 56, FlowDirection = FlowDirection.RightToLeft,
@@ -526,7 +531,7 @@ public class SettingsForm : Form {
         AcceptButton = save;
         CancelButton = cancel;
 
-        Controls.AddRange(new Control[] { intro, grid, autoStart, chatLog, keep, status, bar });
+        Controls.AddRange(new Control[] { intro, grid, autoStart, chat, chatLog, keep, status, bar });
         Shown += (s, e) => (server.Text.Length == 0 ? server : token.Text.Length == 0 ? token : (Control)save).Focus();
     }
 
@@ -557,7 +562,7 @@ public class SettingsForm : Form {
     Config Collect() {
         var c = new Config {
             Server = server.Text, Token = token.Text, WowPath = wow.Text,
-            NoChatLog = !chatLog.Checked, KeepScreenshots = keep.Checked
+            SendChat = chat.Checked, NoChatLog = !chatLog.Checked, KeepScreenshots = keep.Checked
         };
         c.Normalize();
         return c;

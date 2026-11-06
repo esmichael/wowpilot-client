@@ -99,7 +99,7 @@ def win_path(p: Path) -> str:
     return subprocess.run(["wslpath", "-w", str(p)], capture_output=True, text=True, check=True).stdout.strip()
 
 
-def run_client(shots: list[list[Image.Image]], exe: bool = False):
+def run_client(shots: list[list[Image.Image]], exe: bool = False, chat: bool = False):
     """Salva os prints numa pasta do Windows e roda o cliente (.ps1 -Once ou .exe --once) contra um servidor local."""
     temp = subprocess.run(["cmd.exe", "/c", "echo %TEMP%"], capture_output=True, text=True).stdout.strip()
     base = Path(subprocess.run(["wslpath", "-u", temp], capture_output=True, text=True).stdout.strip()) / "wowpilot_test"
@@ -118,12 +118,12 @@ def run_client(shots: list[list[Image.Image]], exe: bool = False):
     try:
         if exe:
             cmd = [str(ROOT / "client" / "WowPilotSync.exe"), "--once", "--server", f"http://localhost:{srv.server_port}",
-                   "--token", "tk123", "--screenshots", win_path(shot_dir), "--config-dir", win_path(base / "cfg"), "--no-chatlog"]
+                   "--token", "tk123", "--screenshots", win_path(shot_dir), "--config-dir", win_path(base / "cfg"), "--no-chatlog"] + (["--chat"] if chat else [])
         else:
             cmd = ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
                    win_path(ROOT / "client" / "WowPilotSync.ps1"), "-Server", f"http://localhost:{srv.server_port}",
                    "-Token", "tk123", "-ScreenshotDir", win_path(shot_dir), "-ConfigDir", win_path(base / "cfg"),
-                   "-Once", "-NoChatLog"]
+                   "-Once", "-NoChatLog"] + (["-Chat"] if chat else [])
         r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180)
     finally:
         srv.shutdown()
@@ -194,14 +194,21 @@ def main():
             if exe and not (client / "WowPilotSync.exe").exists():
                 print("  (sem client/WowPilotSync.exe: rode client\\build.cmd)")
                 continue
-            got, left, log = run_client([small, pages, zipped], exe)
+            got, left, log = run_client([small, pages, zipped], exe, chat=True)
             bodies = [b for path, _, b in got if path == "/api/ingest"]
             check(f"{name}: 3 mensagens enviadas a /api/ingest com o token",
                   len(bodies) == 3 and all(a == "Token tk123" for _, a, _ in got), log)
-            check(f"{name}: JSON idêntico (1 página, multipágina, comprimido)",
+            check(f"{name}: com o chat ligado, JSON idêntico (1 página, multipágina, comprimido)",
                   bodies == [payload, big, medium], log if len(bodies) == 3 else "")
             check(f"{name}: prints com código apagados, print normal mantido",
                   left == ["WoWScrnShot_101726_115959.png"], str(left))
+            # padrão: o chat sai do JSON e o resto chega igual
+            got, _, log = run_client([small, pages, zipped], exe)
+            bodies = [b for path, _, b in got if path == "/api/ingest"]
+            want = [{k: v for k, v in json.loads(p).items() if k != "chat"} for p in (payload, big, medium)]
+            check(f"{name}: com o chat desligado (padrão), sem chat e o resto igual",
+                  '"chat"' in payload and [json.loads(b) for b in bodies] == want
+                  and all('"chat"' not in b for b in bodies), log)
     else:
         print("  (sem powershell.exe: clientes não testados)")
     shutil.rmtree(tmp, ignore_errors=True)

@@ -20,7 +20,10 @@ Addons não acessam rede nem arquivos. O addon desenha os dados como um código 
 tira um print e esconde o código; o cliente lê o PNG, decodifica e envia por HTTPS com o token do usuário.
 
 O formato do código (cabeçalho, paleta, páginas, compressão) está documentado no topo de `WowPilotLive.lua` e em
-`tests/livecode_ref.py`, que é o decodificador de referência. O decodificador C# existe em dois lugares,
+`tests/livecode_ref.py`, que é o decodificador de referência.
+
+O addon sempre coleta o chat; quem decide se ele sai do PC é o cliente: com `SendChat` desligado (padrão),
+`Decoder.DropKey` tira a chave `chat` do JSON antes de enviar ou guardar como pendente. O decodificador C# existe em dois lugares,
 `client/WowPilotSync/Decoder.cs` e embutido no `.ps1`: mantenha os dois iguais (o teste confere).
 
 ## Ambiente
@@ -56,7 +59,7 @@ em `client/WowPilotSync/Sync.cs`, `$ClientVersion` no `.ps1` e `client/WowPilotS
 Para publicar, suba a versão nesses arquivos, faça o commit e crie a tag:
 
 ```bash
-git tag v1.1.1 && git push origin v1.1.1
+git tag v1.2.1 && git push origin v1.2.1
 ```
 
 O workflow confere as versões, compila e publica o Release com `WowPilotSync.exe` e `WowPilot.zip`.

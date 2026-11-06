@@ -45,7 +45,8 @@ Pronto. Deixe o WowPilot Sync aberto enquanto joga; ele fica como um ícone pert
 
 ## Uso no dia a dia
 
-O envio é automático sempre que algo muda (equipamento, bolsas, moedas, grupo, chat…) e **nunca durante combate**.
+O envio é automático sempre que algo muda (equipamento, bolsas, moedas, grupo…) e **nunca durante combate**, no
+Retail e no Forever: o que mudar na luta é enviado assim que ela acaba.
 Você vai ver um código colorido piscar no canto superior esquerdo da tela: é o addon enviando.
 
 Comandos no jogo:
@@ -61,8 +62,11 @@ No ícone do WowPilot Sync (perto do relógio): **Abrir dashboard**, **Configura
 ### Opções do WowPilot Sync
 
 - **Iniciar com o Windows**: abre sozinho, só com o ícone perto do relógio.
-- **Enviar o chat log do jogo**: recupera mensagens que o jogo esconde dos addons durante o combate. Só funciona com o
-  registro de chat ligado no jogo (`/chatlog`).
+- **Enviar as mensagens do chat**: **desligada por padrão**. Desligada, o WowPilot Sync tira o chat dos dados antes
+  de enviar: nenhuma mensagem sai do seu PC.
+  - **Incluir o chat log do jogo** (só com a opção acima ligada): no Retail, o jogo esconde dos addons o chat durante
+    o combate; o arquivo de registro do chat recupera essas mensagens. Precisa do registro ligado no jogo
+    (`/chatlog`). No Forever não faz diferença.
 - **Manter os prints do código**: por padrão, os prints com o código são apagados depois de enviados. Seus prints
   normais nunca são tocados.
 
@@ -74,10 +78,9 @@ Só para a sua conta no site, por conexão segura (HTTPS):
 - equipamento, bolsas, banco e moedas;
 - Great Vault, Mítica+ e desempenho em grupo (do medidor do próprio jogo);
 - grupos: quem estava e onde;
-- chat privado e de grupo: sussurros (inclusive do Battle.net), grupo, raide, instância, guilda e oficiais. Canais
-  públicos (dizer, gritar, Comércio, Geral) ficam de fora;
-- se a opção **Enviar o chat log** estiver ligada: o final do arquivo de registro de chat do jogo (`/chatlog`),
-  que contém tudo o que o jogo registrou;
+- **só se você ligar a opção de chat**: mensagens privadas e de grupo (sussurros, inclusive do Battle.net, grupo,
+  raide, instância, guilda e oficiais; canais públicos como dizer, gritar, Comércio e Geral nunca entram) e, com o
+  chat log, o final do arquivo de registro de chat do jogo, que tem tudo o que o jogo registrou;
 - no WoW: Forever: XP, posição no mapa, quests, talentos, profissões e o passo atual do RestedXP.
 
 Nada é enviado a terceiros. O token fica guardado só neste PC (`%LOCALAPPDATA%\WowPilot`); se desconfiar dele, gere

@@ -6,7 +6,9 @@
   O addon desenha um código colorido no canto superior esquerdo da tela e tira um print (PNG).
   Este script vigia a pasta Screenshots do WoW a cada segundo, decodifica o código, envia os dados
   ao site (HTTPS, com o seu token) e apaga o print. Prints normais (sem código) não são tocados.
-  Também envia o fim do WoWChatLog.txt quando ele muda (recupera o chat que o jogo esconde em combate).
+  As mensagens do chat só são enviadas com -Chat (ou SendChat no config.json); sem isso o script as tira
+  antes de enviar. Com o chat ligado, também envia o fim do WoWChatLog.txt quando ele muda (Retail: recupera
+  o chat que o jogo esconde em combate); -NoChatLog desliga só essa parte.
 
   Primeira vez:   .\WowPilotSync.ps1 -Server https://wowpilot.exemplo.com -Token SEU_TOKEN
   Depois:         .\WowPilotSync.ps1          (usa a configuração salva em %LOCALAPPDATA%\WowPilot)
@@ -17,6 +19,10 @@
   Token gerado na página "Configurar" do site.
 .PARAMETER WowPath
   Pasta _retail_ do WoW. Padrão: detectada pelo registro / C:\Program Files (x86)\World of Warcraft\_retail_
+.PARAMETER Chat
+  Envia as mensagens do chat (padrão: não envia).
+.PARAMETER NoChatLog
+  Com -Chat, não envia o WoWChatLog.txt.
 .PARAMETER KeepScreenshots
   Não apaga os prints depois de enviados.
 .PARAMETER Once
@@ -31,6 +37,7 @@ param(
     [string]$WowPath,
     [string]$ScreenshotDir,
     [switch]$KeepScreenshots,
+    [switch]$Chat,
     [switch]$NoChatLog,
     [switch]$Once,
     [int]$MaxAgeHours = 24,
@@ -38,7 +45,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$ClientVersion = '1.1.0'
+$ClientVersion = '1.2.0'
 $ConfigFile = Join-Path $ConfigDir 'config.json'
 $PendingDir = Join-Path $ConfigDir 'pendentes'
 New-Item -ItemType Directory -Force -Path $ConfigDir, $PendingDir | Out-Null
@@ -67,6 +74,7 @@ $cfg.Server = ([string]$cfg.Server).TrimEnd('/')
 if ($cfg.Server -notmatch '^https?://') { $cfg.Server = 'https://' + $cfg.Server }
 # o PowerShell 5.1 tenta IPv6 (::1) primeiro em 'localhost' e trava quando o site só escuta IPv4
 $cfg.Server = $cfg.Server -replace '^(https?://)localhost(?=[:/]|$)', '${1}127.0.0.1'
+$SendChat = $Chat -or ($cfg.SendChat -eq $true)
 
 if (-not $cfg.WowPath) {
     foreach ($key in 'HKLM:\SOFTWARE\WOW6432Node\Blizzard Entertainment\World of Warcraft',
@@ -352,6 +360,57 @@ public class Decoder {
             return dst.ToArray();
         }
     }
+
+    // Tira uma chave do objeto JSON principal ({"a":1,"chat":[...],"b":2} -> {"a":1,"b":2}); o resto fica igual,
+    // byte a byte. Sem a chave, devolve o mesmo array.
+    public static byte[] DropKey(byte[] json, string key) {
+        string s = System.Text.Encoding.UTF8.GetString(json), want = "\"" + key + "\"";
+        int depth = 0;
+        for (int i = 0; i < s.Length; i++) {
+            char ch = s[i];
+            if (ch == '"') {
+                int end = StringEnd(s, i);
+                if (depth == 1 && end - i + 1 == want.Length && string.CompareOrdinal(s, i, want, 0, want.Length) == 0) {
+                    int j = end + 1;
+                    while (j < s.Length && char.IsWhiteSpace(s[j])) j++;
+                    if (j < s.Length && s[j] == ':') {
+                        int k = ValueEnd(s, j + 1), from = i, to = k;
+                        if (k < s.Length && s[k] == ',') to = k + 1;
+                        else {
+                            int b = i - 1;
+                            while (b >= 0 && char.IsWhiteSpace(s[b])) b--;
+                            if (b >= 0 && s[b] == ',') from = b;
+                        }
+                        return System.Text.Encoding.UTF8.GetBytes(s.Remove(from, to - from));
+                    }
+                }
+                i = end;
+            } else if (ch == '{' || ch == '[') depth++;
+            else if (ch == '}' || ch == ']') depth--;
+        }
+        return json;
+    }
+
+    static int StringEnd(string s, int i) {
+        for (int j = i + 1; j < s.Length; j++) {
+            if (s[j] == '\\') j++;
+            else if (s[j] == '"') return j;
+        }
+        return s.Length - 1;
+    }
+
+    // fim de um valor JSON que começa em i: posição da vírgula ou do fecha-chaves que vem depois dele
+    static int ValueEnd(string s, int i) {
+        int depth = 0;
+        for (int j = i; j < s.Length; j++) {
+            char ch = s[j];
+            if (ch == '"') j = StringEnd(s, j);
+            else if (ch == '{' || ch == '[') depth++;
+            else if (ch == '}' || ch == ']') { if (depth == 0) return j; depth--; }
+            else if (ch == ',' && depth == 0) return j;
+        }
+        return s.Length;
+    }
 }
 
 // Junta as páginas de uma mensagem (prints em sequência).
@@ -452,6 +511,7 @@ if ((Test-Path $LogFile) -and (Get-Item $LogFile).Length -gt 1MB) { Move-Item $L
 Write-Host ''
 Write-Host "WowPilot Sync $ClientVersion" -ForegroundColor Cyan
 Write-Log "site: $($cfg.Server)"
+Write-Log $(if ($SendChat) { "chat: enviado" + $(if ($NoChatLog) { "" } else { " (com o chat log)" }) } else { "chat: não enviado" })
 Write-Log "prints: $($ShotDirs -join ' · ')"
 if (-not (Test-Path $ShotDir)) { Write-Log 'a pasta Screenshots ainda não existe — esperando o primeiro print' 'Yellow' }
 try {
@@ -492,6 +552,7 @@ while ($true) {
                 continue
             }
             if ($frame.Kind -ne 3) { continue }
+            if (-not $SendChat) { $data = [WowPilot.Decoder]::DropKey($data, 'chat') }
             if (Send-Snapshot $data) {
                 $sent++
                 Write-Log ("enviado #{0}: {1:N1} KB ({2} cores, {3} print(s))" -f $sent, ($data.Length / 1KB), [math]::Pow(2, $frame.Bits), [math]::Max(1, $frame.Total)) 'Green'
@@ -502,7 +563,7 @@ while ($true) {
     }
 
     # chat log do jogo (gravado pelo WoW no logout): manda o fim do arquivo quando muda
-    if (-not $NoChatLog -and (Test-Path $ChatLog)) {
+    if ($SendChat -and -not $NoChatLog -and (Test-Path $ChatLog)) {
         $mt = (Get-Item $ChatLog).LastWriteTimeUtc
         if ($mt -ne $lastChat -and ((Get-Date).ToUniversalTime() - $mt).TotalSeconds -gt 3) {
             $lastChat = $mt

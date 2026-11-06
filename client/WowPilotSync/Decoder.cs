@@ -250,6 +250,57 @@ public class Decoder {
             return dst.ToArray();
         }
     }
+
+    // Tira uma chave do objeto JSON principal ({"a":1,"chat":[...],"b":2} -> {"a":1,"b":2}); o resto fica igual,
+    // byte a byte. Sem a chave, devolve o mesmo array.
+    public static byte[] DropKey(byte[] json, string key) {
+        string s = System.Text.Encoding.UTF8.GetString(json), want = "\"" + key + "\"";
+        int depth = 0;
+        for (int i = 0; i < s.Length; i++) {
+            char ch = s[i];
+            if (ch == '"') {
+                int end = StringEnd(s, i);
+                if (depth == 1 && end - i + 1 == want.Length && string.CompareOrdinal(s, i, want, 0, want.Length) == 0) {
+                    int j = end + 1;
+                    while (j < s.Length && char.IsWhiteSpace(s[j])) j++;
+                    if (j < s.Length && s[j] == ':') {
+                        int k = ValueEnd(s, j + 1), from = i, to = k;
+                        if (k < s.Length && s[k] == ',') to = k + 1;
+                        else {
+                            int b = i - 1;
+                            while (b >= 0 && char.IsWhiteSpace(s[b])) b--;
+                            if (b >= 0 && s[b] == ',') from = b;
+                        }
+                        return System.Text.Encoding.UTF8.GetBytes(s.Remove(from, to - from));
+                    }
+                }
+                i = end;
+            } else if (ch == '{' || ch == '[') depth++;
+            else if (ch == '}' || ch == ']') depth--;
+        }
+        return json;
+    }
+
+    static int StringEnd(string s, int i) {
+        for (int j = i + 1; j < s.Length; j++) {
+            if (s[j] == '\\') j++;
+            else if (s[j] == '"') return j;
+        }
+        return s.Length - 1;
+    }
+
+    // fim de um valor JSON que começa em i: posição da vírgula ou do fecha-chaves que vem depois dele
+    static int ValueEnd(string s, int i) {
+        int depth = 0;
+        for (int j = i; j < s.Length; j++) {
+            char ch = s[j];
+            if (ch == '"') j = StringEnd(s, j);
+            else if (ch == '{' || ch == '[') depth++;
+            else if (ch == '}' || ch == ']') { if (depth == 0) return j; depth--; }
+            else if (ch == ',' && depth == 0) return j;
+        }
+        return s.Length;
+    }
 }
 
 // Junta as páginas de uma mensagem (prints em sequência).

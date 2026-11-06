@@ -15,6 +15,7 @@ namespace WowPilot {
 public class Config {
     public string Server = "", Token = "", WowPath = "";
     public bool KeepScreenshots, NoChatLog;
+    public bool SendChat;   // mensagens do chat: desligado por padrão (o addon coleta, o cliente tira antes de enviar)
 
     public static string DefaultDir {
         get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WowPilot"); }
@@ -35,6 +36,7 @@ public class Config {
             if (d.TryGetValue("WowPath", out v) && v != null) c.WowPath = v.ToString();
             if (d.TryGetValue("KeepScreenshots", out v) && v is bool) c.KeepScreenshots = (bool)v;
             if (d.TryGetValue("NoChatLog", out v) && v is bool) c.NoChatLog = (bool)v;
+            if (d.TryGetValue("SendChat", out v) && v is bool) c.SendChat = (bool)v;
         } catch { }
         return c;
     }
@@ -43,7 +45,7 @@ public class Config {
         Directory.CreateDirectory(dir);
         var d = new Dictionary<string, object> {
             { "Server", Server }, { "Token", Token }, { "WowPath", WowPath },
-            { "KeepScreenshots", KeepScreenshots }, { "NoChatLog", NoChatLog } };
+            { "KeepScreenshots", KeepScreenshots }, { "NoChatLog", NoChatLog }, { "SendChat", SendChat } };
         File.WriteAllText(Path.Combine(dir, "config.json"), new JavaScriptSerializer().Serialize(d), new UTF8Encoding(false));
     }
 
@@ -96,7 +98,7 @@ public class HttpResult {
 }
 
 public static class Http {
-    public const string Version = "1.1.0";
+    public const string Version = "1.2.0";
 
     static Http() {
         try { ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12; } catch { }
@@ -240,6 +242,7 @@ public class Engine {
     bool Connect() {
         Log("WowPilot Sync " + Http.Version + " — site: " + Cfg.Server, LogLevel.Info);
         Log("prints: " + string.Join(" · ", ShotDirs), LogLevel.Info);
+        Log(Cfg.SendChat ? "chat: enviado" + (Cfg.NoChatLog ? "" : " (com o chat log)") : "chat: não enviado", LogLevel.Info);
         if (!Directory.Exists(ShotDir)) Log("a pasta Screenshots ainda não existe — esperando o primeiro print", LogLevel.Warn);
         if (File.Exists(ChatLog)) lastChat = File.GetLastWriteTimeUtc(ChatLog);  // só manda quando mudar
         HttpResult r;
@@ -283,7 +286,7 @@ public class Engine {
                 ProcessShot(f, once);
             }
         }
-        if (!Cfg.NoChatLog) SendChatLog();
+        if (Cfg.SendChat && !Cfg.NoChatLog) SendChatLog();
         if ((DateTime.Now - lastPendingTry).TotalSeconds >= 30) {
             lastPendingTry = DateTime.Now;
             SendPending();
@@ -310,6 +313,7 @@ public class Engine {
             return;
         }
         if (frame.Kind != 3) return;
+        if (!Cfg.SendChat) data = Decoder.DropKey(data, "chat");
         if (SendSnapshot(data)) {
             Sent++;
             LastSent = DateTime.Now;
