@@ -10,11 +10,11 @@
   antes de enviar. Com o chat ligado, também envia o fim do WoWChatLog.txt quando ele muda (Retail: recupera
   o chat que o jogo esconde em combate); -NoChatLog desliga só essa parte.
 
-  Primeira vez:   .\WowPilotSync.ps1 -Server https://wowpilot.exemplo.com -Token SEU_TOKEN
+  Primeira vez:   .\WowPilotSync.ps1 -Token SEU_TOKEN
   Depois:         .\WowPilotSync.ps1          (usa a configuração salva em %LOCALAPPDATA%\WowPilot)
 
 .PARAMETER Server
-  Endereço do site (ex.: https://wowpilot.exemplo.com).
+  Endereço do site. Padrão: https://wowpilot.mican.com.br (o WowPilot oficial).
 .PARAMETER Token
   Token gerado na página "Configurar" do site.
 .PARAMETER WowPath
@@ -65,9 +65,10 @@ if (Test-Path $ConfigFile) {
 }
 if ($Server) { $cfg.Server = $Server }
 if ($Token) { $cfg.Token = $Token }
+if (-not $cfg.Server) { $cfg.Server = 'https://wowpilot.mican.com.br' }
 if ($WowPath) { $cfg.WowPath = $WowPath }
 if (-not $cfg.Server -or -not $cfg.Token) {
-    Write-Host 'Uso (primeira vez): .\WowPilotSync.ps1 -Server https://seu-site -Token SEU_TOKEN' -ForegroundColor Yellow
+    Write-Host 'Uso (primeira vez): .\WowPilotSync.ps1 -Token SEU_TOKEN' -ForegroundColor Yellow
     Write-Host 'O token fica na página "Configurar" do site.'
     exit 1
 }

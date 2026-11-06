@@ -25,7 +25,8 @@ este PC à sua conta.
 2. Abra o programa. Se o Windows mostrar *"O Windows protegeu o computador"*, clique em **Mais informações** →
    **Executar assim mesmo** (o programa ainda não tem assinatura digital paga).
 3. Na janela de configuração, preencha:
-   - **Endereço do site**: o endereço do WowPilot que você usa;
+   - **Endereço do site**: já vem preenchido com `https://wowpilot.mican.com.br`. Só troque se você usa outro
+     servidor do WowPilot;
    - **Token**: o que você gerou na página Configurar;
    - **Pasta do WoW**: deixe em branco. O programa acha o jogo sozinho (em qualquer disco) e mostra embaixo o que
      encontrou, por exemplo *Encontrado: Retail · WoW: Forever*. Só escolha a pasta se ele não achar.

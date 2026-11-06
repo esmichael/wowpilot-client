@@ -23,17 +23,19 @@ public class Config {
         get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WowPilot"); }
     }
 
+    public const string DefaultServer = "https://wowpilot.mican.com.br";   // o WowPilot oficial; dá para trocar
+
     public bool Complete { get { return Server.Length > 0 && Token.Length > 0; } }
 
     // mesmo config.json do WowPilotSync.ps1 (chaves Server/Token/WowPath)
     public static Config Load(string dir) {
-        Config c = new Config();
+        Config c = new Config { Server = DefaultServer };
         string file = Path.Combine(dir, "config.json");
         if (!File.Exists(file)) return c;
         try {
             var d = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(File.ReadAllText(file));
             object v;
-            if (d.TryGetValue("Server", out v) && v != null) c.Server = v.ToString();
+            if (d.TryGetValue("Server", out v) && v != null && v.ToString().Trim().Length > 0) c.Server = v.ToString();
             if (d.TryGetValue("Token", out v) && v != null) c.Token = v.ToString();
             if (d.TryGetValue("WowPath", out v) && v != null) c.WowPath = v.ToString();
             if (d.TryGetValue("KeepScreenshots", out v) && v is bool) c.KeepScreenshots = (bool)v;

@@ -658,7 +658,7 @@ public class SettingsForm : Form {
         token.UseSystemPasswordChar = true;
         token.Font = new Font("Consolas", 9.5f);
         wow.Text = c.WowPath;
-        SetCue(server, "https://wowpilot.exemplo.com");
+        SetCue(server, Config.DefaultServer);
         SetCue(token, "cole aqui o token");
         SetCue(wow, "automático");
 
