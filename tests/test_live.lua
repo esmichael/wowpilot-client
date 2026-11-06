@@ -339,6 +339,34 @@ T["forever: ficha do jogador (vida, recurso, mana do druida em forma, atributos)
     assert(js:find('"me":{[^}]*"dead":1') and not js:find('"mana":%['), "morto, sem mana duplicada: " .. js)
 end
 
+T["forever: seta do RXP vai em path.arrow mesmo fora da lista, com o motivo"] = function()
+    _G.UnitXP = function() return 100 end
+    _G.UnitXPMax = function() return 400 end
+    _G.UnitRace = function() return "Orc", "Orc", 2 end
+    _G.UnitFactionGroup = function() return "Horde", "Horda" end
+    local s153 = { index = 153, active = true, elements = { { text = "Mate Kolkar ao redor do oásis" } } }
+    local s154 = { index = 154, active = true, elements = { { text = "Vá ao poço", zone = 1413, x = 50, y = 50, wpHash = 7 } } }
+    local gerado = { zone = 1413, x = 45.123, y = 38.456, generated = 0, step = s153 }   -- .line/.mob: não está em elements
+    local shown = true
+    local af = { element = gerado, IsShown = function() return shown end }
+    _G.RXPCData = { currentStep = 154, completedWaypoints = {} }
+    _G.RXP = { currentGuide = { name = "Sertões", steps = { [153] = s153, [154] = s154 } },
+               RXPFrame = { activeSteps = { s153, s154 } }, arrowFrame = af }
+    for i = 1, 152 do RXP.currentGuide.steps[i] = { index = i, completed = true, elements = {} } end
+    boot()
+    local js = NS.Live.fullPayload(true, true)
+    assert(js:find('"arrow":%[153,1413,45.12,38.46,"fora"%]'), "seta fora da lista: " .. js)
+    af.element = s154.elements[1]
+    js = NS.Live.fullPayload(true, true)
+    assert(js:find('"arrow":%[154,1413,50,50%]') and js:find('%[1413,50,50,1%]'), "seta num ponto da lista: " .. js)
+    RXPCData.completedWaypoints[154] = { [7] = true }
+    js = NS.Live.fullPayload(true, true)
+    assert(js:find('"arrow":%[154,1413,50,50,"feito"%]'), "ponto alcançado: " .. js)
+    shown = false
+    js = NS.Live.fullPayload(true, true)
+    assert(not js:find('"arrow"'), "seta escondida não vai: " .. js)
+end
+
 T["forever: andar agenda envio (mesmo sem evento), parado não"] = function()
     local px = 0.40
     _G.C_Map = { GetBestMapForUnit = function() return 1413 end,

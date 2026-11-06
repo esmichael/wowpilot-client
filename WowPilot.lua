@@ -892,6 +892,8 @@ local function plainText(s)
     return s:match("^%s*(.-)%s*$")
 end
 
+local NULL = 0 / 0   -- vira null no JSON: guarda a posição numa lista sem deslocar os itens seguintes
+
 -- próximos passos do guia do RestedXP (o addon deles é global: RXP = addon), já filtrados para o personagem:
 --   [[índice, ativo, texto, [[uiMap, x, y, seta], ...]], ...] (máx. 30 passos), na ordem em que o RXP desenha os pinos:
 --   1º os passos ativos (inclui os "grudados" de antes do atual, ex. "#completewith": entrar na cidade), depois os
@@ -939,10 +941,34 @@ local function rxpPath()
         end
         if #out >= 30 then break end
     end
-    return { guide = guide.name, cur = cur, total = #guide.steps, steps = out }
+    local res = { guide = guide.name, cur = cur, total = #guide.steps, steps = out }
+    -- para onde a seta aponta, mesmo que o ponto não esteja na lista acima: a seta do RXP também usa pontos gerados
+    -- (.line/.mob) que não ficam em step.elements. [passo, uiMap, x, y, motivo]; motivo = por que não está na
+    -- lista: "fora" (não é elemento do passo), "skip", "feito" (completedWaypoints), "pai" (pai concluído), "pin"
+    -- (hidePin); sem motivo = está na lista. Seta escondida ou sem coordenada de mapa: não manda.
+    local af = A.arrowFrame
+    local shown = type(af) == "table" and type(af.IsShown) == "function" and select(2, pcall(af.IsShown, af))
+    if arrow and shown and type(arrow) == "table" and num(arrow.zone) and num(arrow.x) and num(arrow.y) then
+        local owner = type(arrow.step) == "table" and arrow.step or nil
+        local member = false
+        for _, step in ipairs(guide.steps) do
+            for _, el in ipairs(type(step) == "table" and step.elements or {}) do
+                if el == arrow then owner, member = owner or step, true; break end
+            end
+            if member then break end
+        end
+        local why
+        if not member then why = "fora"
+        elseif arrow.skip then why = "skip"
+        elseif arrow.wpHash and owner and (done[owner.index or 0] or {})[arrow.wpHash] then why = "feito"
+        elseif type(arrow.parent) == "table" and (arrow.parent.completed or arrow.parent.skip) then why = "pai"
+        elseif arrow.hidePin then why = "pin" end
+        res.arrow = { owner and owner.index or NULL, arrow.zone, math.floor(arrow.x * 100 + 0.5) / 100,
+                      math.floor(arrow.y * 100 + 0.5) / 100, why }
+    end
+    return res
 end
 
-local NULL = 0 / 0   -- vira null no JSON: guarda a posição numa lista sem deslocar os itens seguintes
 
 local function pct(a, b)
     a, b = num(a), num(b)
