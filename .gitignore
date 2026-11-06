@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+# gerados pelo build (o .exe e o zip do addon saem nos Releases do GitHub)
+client/WowPilotSync.exe
+*.zip
