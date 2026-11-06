@@ -526,10 +526,12 @@ public class SettingsForm : Form {
         chat.CheckedChanged += (s, e) => chatLog.Enabled = chat.Checked;
         keep.Text = "Manter os prints do código depois de enviar";
         keep.Checked = c.KeepScreenshots;
-        found.SetBounds(150, 172, 390, 20);
+        found.SetBounds(150, 174, 300, 20);
         found.ForeColor = Theme.Muted;
         found.AutoEllipsis = true;
-        wow.TextChanged += (s, e) => ShowFound();
+        var rescan = new LinkLabel { Text = "Buscar de novo", AutoSize = true, Location = new Point(456, 174) };
+        rescan.LinkClicked += (s, e) => ShowFound();
+        wow.Leave += (s, e) => ShowFound();   // ao sair do campo, não a cada tecla
         ShowFound();
         int y = 200;
         foreach (CheckBox cb in new[] { autoStart, chat, chatLog, keep }) {
@@ -553,7 +555,7 @@ public class SettingsForm : Form {
         AcceptButton = save;
         CancelButton = cancel;
 
-        Controls.AddRange(new Control[] { intro, grid, found, autoStart, chat, chatLog, keep, status, bar });
+        Controls.AddRange(new Control[] { intro, grid, found, rescan, autoStart, chat, chatLog, keep, status, bar });
         Shown += (s, e) => (server.Text.Length == 0 ? server : token.Text.Length == 0 ? token : (Control)save).Focus();
     }
 
@@ -584,7 +586,7 @@ public class SettingsForm : Form {
     void Browse() {
         using (var d = new FolderBrowserDialog { Description = "Escolha a pasta World of Warcraft (a que tem _retail_, _forever_…)", ShowNewFolderButton = false }) {
             if (Directory.Exists(wow.Text)) d.SelectedPath = wow.Text;
-            if (d.ShowDialog(this) == DialogResult.OK) wow.Text = Config.NormalizeWowPath(d.SelectedPath);
+            if (d.ShowDialog(this) == DialogResult.OK) { wow.Text = Config.NormalizeWowPath(d.SelectedPath); ShowFound(); }
         }
     }
 

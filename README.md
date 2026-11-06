@@ -43,7 +43,8 @@ Dica: na página Configurar do site, o botão **Configurar o WowPilot Sync** pre
 (com o programa já aberto uma vez).
 
 Pronto. Deixe o WowPilot Sync aberto enquanto joga; ele fica como um ícone perto do relógio. Ele vigia ao mesmo
-tempo todas as variações instaladas (Retail, WoW: Forever, Classic, PTR…), inclusive uma que você instalar depois.
+tempo todas as variações instaladas (Retail, WoW: Forever, Classic, PTR…). A busca acontece quando o programa
+abre; instalou uma variação nova? Reabra o programa ou use **Buscar de novo** em **Configurações…**.
 
 ## Uso no dia a dia
 

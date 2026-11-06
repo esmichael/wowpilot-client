@@ -81,7 +81,7 @@ public class HttpResult {
 }
 
 public static class Http {
-    public const string Version = "1.3.0";
+    public const string Version = "1.3.1";
 
     static Http() {
         try { ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12; } catch { }
@@ -138,7 +138,7 @@ public enum LogLevel { Info, Ok, Warn, Error }
 public class Engine {
     public readonly Config Cfg;
     public readonly string ConfigDir, PendingDir, LogFile;
-    // variações do jogo achadas (refeito a cada minuto: pega uma variação instalada com o programa aberto)
+    // variações do jogo achadas ao iniciar (o programa reinicia isto ao abrir e ao salvar as configurações)
     public List<Flavor> Flavors = new List<Flavor>();
     public string[] ShotDirs = new string[0];   // Screenshots de cada variação (Retail primeiro)
     public string ShotDir = "", ChatLog = "";   // a primeira; chat log do Retail (o único que esconde chat em combate)
@@ -156,7 +156,7 @@ public class Engine {
 
     readonly Assembler assembler = new Assembler();
     readonly Dictionary<string, string> seen = new Dictionary<string, string>();
-    DateTime lastChat = DateTime.MinValue, lastPendingTry = DateTime.MinValue, lastScan = DateTime.MinValue;
+    DateTime lastChat = DateTime.MinValue, lastPendingTry = DateTime.MinValue;
     Thread thread;
     volatile bool stop;
     readonly ManualResetEvent wake = new ManualResetEvent(false);
@@ -174,18 +174,15 @@ public class Engine {
         } catch { }
     }
 
-    // procura as variações do jogo; true se a lista mudou
-    bool Scan() {
-        lastScan = DateTime.Now;
+    // procura as variações do jogo
+    void Scan() {
         List<Flavor> found = WowInstall.Find(Cfg.WowPath);
-        bool changed = WowInstall.Describe(found) != WowInstall.Describe(Flavors) || found.Count != Flavors.Count;
         Flavors = found;
         if (!string.IsNullOrEmpty(fixedShotDir)) ShotDirs = new[] { fixedShotDir };
         else ShotDirs = found.Select(f => f.Screenshots).ToArray();
         ShotDir = ShotDirs.Length > 0 ? ShotDirs[0] : "";
         Flavor chat = found.FirstOrDefault(f => string.Equals(f.Product, "wow", StringComparison.OrdinalIgnoreCase));
         ChatLog = chat != null ? chat.ChatLog : "";
-        return changed;
     }
 
     void LogFlavors() {
@@ -277,7 +274,6 @@ public class Engine {
             }
         }
         if (Cfg.SendChat && !Cfg.NoChatLog) SendChatLog();
-        if (!once && (DateTime.Now - lastScan).TotalSeconds >= 60 && Scan()) { LogFlavors(); Fire(); }
         if ((DateTime.Now - lastPendingTry).TotalSeconds >= 30) {
             lastPendingTry = DateTime.Now;
             SendPending();

@@ -25,7 +25,8 @@ O formato do código (cabeçalho, paleta, páginas, compressão) está documenta
 A busca das instalações do jogo também mora no código compartilhado (`WowInstall` em `Decoder.cs`): chaves de
 desinstalação do Battle.net no registro, a chave antiga da Blizzard e caminhos comuns em todos os discos. Cada
 variação é uma pasta `_nome_` com `.flavor.info` (produto: `wow`, `wowf`…) ou `Wow*.exe`; pastas vazias de variações
-desinstaladas ficam de fora. Para ver o que o cliente acha numa máquina:
+desinstaladas ficam de fora. A busca roda ao iniciar o motor (abrir o programa, salvar as configurações) e no
+botão **Buscar de novo**; não há busca periódica. Para ver o que o cliente acha numa máquina:
 
 ```bash
 WowPilotSync.exe --list-games > jogos.txt
@@ -68,7 +69,7 @@ em `client/WowPilotSync/Sync.cs`, `$ClientVersion` no `.ps1` e `client/WowPilotS
 Para publicar, suba a versão nesses arquivos, faça o commit e crie a tag:
 
 ```bash
-git tag v1.3.1 && git push origin v1.3.1
+git tag v1.3.2 && git push origin v1.3.2
 ```
 
 O workflow confere as versões, compila e publica o Release com `WowPilotSync.exe` e `WowPilot.zip`.

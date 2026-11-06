@@ -46,7 +46,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$ClientVersion = '1.3.0'
+$ClientVersion = '1.3.1'
 $ConfigFile = Join-Path $ConfigDir 'config.json'
 $PendingDir = Join-Path $ConfigDir 'pendentes'
 New-Item -ItemType Directory -Force -Path $ConfigDir, $PendingDir | Out-Null
@@ -558,22 +558,19 @@ if (-not ('WowPilot.Decoder' -as [type])) {
 
 # ---------------------------------------------------------------- variações do jogo instaladas
 $Flavors = @(); $ShotDirs = @(); $ShotDir = ''; $ChatLog = ''
-function Update-Flavors {
+function Update-Flavors {   # uma vez, ao iniciar
     $found = @([WowPilot.WowInstall]::Find([string]$cfg.WowPath))
-    $changed = (($found | ForEach-Object { $_.Dir }) -join '|') -ne (($script:Flavors | ForEach-Object { $_.Dir }) -join '|')
     $script:Flavors = $found
     $script:ShotDirs = if ($ScreenshotDir) { @($ScreenshotDir) } else { @($found | ForEach-Object { $_.Screenshots }) }
     $script:ShotDir = if ($script:ShotDirs.Count) { $script:ShotDirs[0] } else { '' }
     $retail = @($found | Where-Object { $_.Product -eq 'wow' })
     $script:ChatLog = if ($retail.Count) { $retail[0].ChatLog } else { '' }   # só o Retail esconde chat em combate
-    $script:lastScan = Get-Date
-    return $changed
 }
 function Write-Flavors {
     if (-not $Flavors.Count) { Write-Log 'não achei o World of Warcraft neste PC — use -WowPath "D:\...\World of Warcraft"' 'Yellow'; return }
     foreach ($f in $Flavors) { Write-Log "jogo: $($f.Name) — $($f.Dir)" }
 }
-[void](Update-Flavors)
+Update-Flavors
 
 # ---------------------------------------------------------------- envio
 $Headers = @{ 'Authorization' = "Token $($cfg.Token)"; 'X-WowPilot-Client' = "ps1/$ClientVersion" }
@@ -646,7 +643,6 @@ try {
 Write-Log 'vigiando… (Ctrl+C para sair)'
 
 while ($true) {
-    if (-not $Once -and ((Get-Date) - $lastScan).TotalSeconds -ge 60 -and (Update-Flavors)) { Write-Flavors }
     foreach ($dir in $ShotDirs) {
         if (-not (Test-Path $dir)) { continue }
         $files = Get-ChildItem -Path $dir -File -ErrorAction SilentlyContinue |
