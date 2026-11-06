@@ -189,6 +189,87 @@ def check_shortcuts(check, exe: Path):
         shutil.rmtree(base, ignore_errors=True)
 
 
+def check_update(check, exe: Path):
+    """Atualização (--update) contra um 'GitHub' local: troca o .exe, atualiza o addon onde ele está, confere o SHA-256."""
+    import hashlib
+    import io
+    import zipfile
+    temp = subprocess.run(["cmd.exe", "/c", "echo %TEMP%"], capture_output=True, text=True).stdout.strip()
+    base = Path(subprocess.run(["wslpath", "-u", temp], capture_output=True, text=True).stdout.strip()) / "wowpilot_update"
+    shutil.rmtree(base, ignore_errors=True)
+    app = base / "app"
+    app.mkdir(parents=True)
+    shutil.copy(exe, app / "WowPilotSync.exe")
+    root = base / "World of Warcraft"
+    for folder, product, addon in (("_retail_", "wow", True), ("_forever_", "wowf", False)):
+        d = root / folder
+        d.mkdir(parents=True)
+        (d / ".flavor.info").write_bytes(f"Product Flavor!STRING:0\r\n{product}\r\n".encode())
+        if addon:
+            (d / "Interface" / "AddOns" / "WowPilot").mkdir(parents=True)
+            (d / "Interface" / "AddOns" / "WowPilot" / "WowPilot.toc").write_text("## Version: 0.0.1\n")
+    new_exe = b"MZ novo .exe de teste"
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("WowPilot/WowPilot.toc", "## Version: 9.9.9\n")
+        z.writestr("WowPilot/WowPilot.lua", "-- novo")
+        z.writestr("WowPilot/../fora.txt", "não pode sair da pasta")
+    new_zip = buf.getvalue()
+    sha = lambda b: "sha256:" + hashlib.sha256(b).hexdigest()
+
+    class Gh(BaseHTTPRequestHandler):
+        tag, exe_digest = "v9.9.9", sha(new_exe)
+
+        def do_GET(self):
+            port = self.server.server_port
+            if self.path == "/latest":
+                body = json.dumps({"tag_name": Gh.tag, "html_url": "x", "assets": [
+                    {"name": "WowPilotSync.exe", "browser_download_url": f"http://127.0.0.1:{port}/exe", "digest": Gh.exe_digest},
+                    {"name": "WowPilot.zip", "browser_download_url": f"http://127.0.0.1:{port}/zip", "digest": sha(new_zip)}]}).encode()
+            else:
+                body = new_exe if self.path == "/exe" else new_zip
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *a):
+            pass
+
+    srv = HTTPServer(("0.0.0.0", 0), Gh)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+    def run():
+        r = subprocess.run([str(app / "WowPilotSync.exe"), "--update", "--api", f"http://127.0.0.1:{srv.server_port}/latest",
+                            "--wow", win_path(root), "--config-dir", win_path(base / "cfg")],
+                           capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120)
+        return r.stdout + r.stderr
+
+    toc = root / "_retail_" / "Interface" / "AddOns" / "WowPilot" / "WowPilot.toc"
+    try:
+        Gh.exe_digest = "sha256:" + "0" * 64          # 1) SHA-256 errado: nada muda
+        out = run()
+        check("WowPilotSync.exe: atualização com SHA-256 errado não troca nada",
+              "confere" in out and toc.read_text() == "## Version: 0.0.1\n"
+              and (app / "WowPilotSync.exe").read_bytes() != new_exe, out)
+        Gh.exe_digest = sha(new_exe)                    # 2) certo: troca o .exe e o addon onde ele está
+        out = run()
+        check("WowPilotSync.exe: atualização troca o .exe e o addon só onde ele está instalado",
+              (app / "WowPilotSync.exe").read_bytes() == new_exe and (app / "WowPilotSync.exe.old").exists()
+              and toc.read_text() == "## Version: 9.9.9\n" and (toc.parent / "WowPilot.lua").exists()
+              and not (root / "_forever_" / "Interface").exists() and not (toc.parent.parent / "fora.txt").exists()
+              and "addon: Retail" in out, out)
+        shutil.copy(exe, app / "WowPilotSync.exe")     # 3) mesma versão: nada a fazer
+        Gh.tag = "v" + subprocess.run(["powershell.exe", "-NoProfile", "-Command",
+                                       f"(Get-Item '{win_path(exe)}').VersionInfo.ProductVersion"],
+                                      capture_output=True, text=True).stdout.strip()
+        out = run()
+        check(f"WowPilotSync.exe: na versão mais recente ({Gh.tag}) não faz nada", "mais recente" in out, out)
+    finally:
+        srv.shutdown()
+        shutil.rmtree(base, ignore_errors=True)
+
+
 def main():
     failed = 0
 
@@ -270,6 +351,7 @@ def main():
         if exe.exists():
             check_games(check, exe)
             check_shortcuts(check, exe)
+            check_update(check, exe)
     else:
         print("  (sem powershell.exe: clientes não testados)")
     shutil.rmtree(tmp, ignore_errors=True)

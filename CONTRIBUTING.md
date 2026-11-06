@@ -73,3 +73,11 @@ git tag v1.3.3 && git push origin v1.3.3
 ```
 
 O workflow confere as versões, compila e publica o Release com `WowPilotSync.exe` e `WowPilot.zip`.
+
+O botão **Atualizar** do cliente (`Update.cs`) lê `releases/latest` pela API do GitHub e só aceita os arquivos se o
+SHA-256 bater com o `digest` que o GitHub publica para cada asset. Ele não mexe numa pasta do addon que seja clone do
+git. Para testar sem o GitHub: `WowPilotSync.exe --update --api <url do JSON> --wow <pasta>` (veja
+`tests/test_live_decode.py`).
+
+Gere tags só para publicar uma versão de verdade (ou validar o pipeline): cada tag vira um Release que o botão
+Atualizar oferece a todos.

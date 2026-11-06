@@ -63,6 +63,12 @@ Comandos no jogo:
 
 No ícone do WowPilot Sync (perto do relógio): **Abrir dashboard**, **Configurações…** e **Sair**.
 
+### Atualizar
+
+Ao abrir, o WowPilot Sync avisa quando há versão nova. Clique em **Atualizar** na janela do programa: ele baixa a
+versão mais recente daqui do GitHub, confere os arquivos (SHA-256), atualiza o addon em todas as pastas do jogo onde
+ele está instalado e reabre sozinho. Depois, no jogo, dê `/reload`.
+
 ### Opções do WowPilot Sync
 
 - **Iniciar com o Windows**: abre sozinho, só com o ícone perto do relógio.

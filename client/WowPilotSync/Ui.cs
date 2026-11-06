@@ -32,7 +32,13 @@ public static class Program {
         }
         string dir = opt.ContainsKey("config-dir") ? opt["config-dir"] : Config.DefaultDir;
         Directory.CreateDirectory(dir);
+        string pidText;   // aberto pela atualização: espera a versão antiga fechar
+        if (opt.TryGetValue("after-update", out pidText)) {
+            try { Process.GetProcessById(int.Parse(pidText)).WaitForExit(15000); } catch { }
+        }
+        Updater.Cleanup(Application.ExecutablePath);
         if (opt.ContainsKey("list-games")) return ListGames(opt, dir);
+        if (opt.ContainsKey("update")) return UpdateCli(opt, dir);
         if (opt.ContainsKey("sync-shortcuts")) {   // testes: aplica os atalhos da configuração e sai
             string links;
             if (opt.TryGetValue("links-dir", out links)) Integration.LinksDir = links;
@@ -63,9 +69,29 @@ public static class Program {
 
     static bool IsValued(string a) {
         switch (a.Substring(2).ToLowerInvariant()) {
-            case "server": case "token": case "wow": case "screenshots": case "config-dir": case "links-dir": return true;
+            case "server": case "token": case "wow": case "screenshots": case "config-dir": case "links-dir": case "after-update": case "api": return true;
         }
         return false;
+    }
+
+    // linha de comando (testes/suporte): atualiza sem perguntar e sem reabrir; --api troca o endereço do Release
+    static int UpdateCli(Dictionary<string, string> opt, string dir) {
+        string v, err;
+        if (opt.TryGetValue("api", out v)) Updater.Api = v;
+        ReleaseInfo r = Updater.Latest(out err);
+        if (r == null) { Console.WriteLine("erro: " + err); return 2; }
+        if (!Updater.IsNewer(r)) { Console.WriteLine("já está na versão mais recente (" + Http.Version + ")"); return 0; }
+        try {
+            byte[] zip = Updater.Download(r.ZipUrl, r.ZipSha256), exe = Updater.Download(r.ExeUrl, r.ExeSha256);
+            if (!opt.TryGetValue("wow", out v)) v = Config.Load(dir).WowPath;
+            List<string> done = Updater.UpdateAddon(zip, WowInstall.Find(v));
+            Updater.ReplaceExe(Application.ExecutablePath, exe);
+            Console.WriteLine("atualizado para " + r.Tag + "; addon: " + (done.Count > 0 ? string.Join(", ", done.ToArray()) : "nenhum"));
+            return 0;
+        } catch (Exception e) {
+            Console.WriteLine("erro: " + e.Message);
+            return 3;
+        }
     }
 
     // linha de comando (suporte/testes): variações do jogo encontradas, uma por linha (nome, produto, pasta)
@@ -318,6 +344,8 @@ public class TrayApp : ApplicationContext {
 
         StartEngine();
         if (!minimized) ShowMain();
+        main.CheckForUpdate += () => CheckUpdate(false);
+        CheckUpdate(true);   // ao abrir: só avisa se houver versão nova
         Ready = true;
     }
 
@@ -383,6 +411,55 @@ public class TrayApp : ApplicationContext {
         main.Activate();
     }
 
+    // ---------------------------------------------------------------- atualização
+    void CheckUpdate(bool quiet) {
+        new Thread(() => {
+            string err;
+            ReleaseInfo r = Updater.Latest(out err);
+            try { main.BeginInvoke((Action)(() => OnUpdateInfo(r, err, quiet))); } catch { }
+        }) { IsBackground = true }.Start();
+    }
+
+    void OnUpdateInfo(ReleaseInfo r, string err, bool quiet) {
+        if (r == null) {
+            if (!quiet) MessageBox.Show(main, "Não consegui ver se há versão nova (" + err + ").", "WowPilot Sync", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+        if (!Updater.IsNewer(r)) {
+            if (!quiet) MessageBox.Show(main, "Você já está na versão mais recente (" + Http.Version + ").", "WowPilot Sync", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        if (quiet) {
+            main.AddLog(DateTime.Now, "versão nova disponível: " + r.Tag + " — clique em Atualizar", LogLevel.Warn);
+            tray.ShowBalloonTip(5000, "WowPilot Sync", "A versão " + r.Tag + " está disponível. Abra o programa e clique em Atualizar.", ToolTipIcon.Info);
+            return;
+        }
+        if (MessageBox.Show(main, "Atualizar para a versão " + r.Tag + "?\n\nO programa baixa a versão nova, confere os arquivos, atualiza o addon " +
+                "nas pastas do jogo onde ele está instalado e reabre sozinho. No jogo, dê /reload depois.",
+                "WowPilot Sync", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+        main.AddLog(DateTime.Now, "baixando a versão " + r.Tag + "…", LogLevel.Info);
+        List<Flavor> flavors = engine != null ? engine.Flavors : WowInstall.Find(cfg.WowPath);
+        new Thread(() => {
+            string fail = null;
+            try {
+                byte[] zip = Updater.Download(r.ZipUrl, r.ZipSha256), exe = Updater.Download(r.ExeUrl, r.ExeSha256);
+                Updater.UpdateAddon(zip, flavors);
+                Updater.ReplaceExe(Application.ExecutablePath, exe);
+            } catch (Exception e) { fail = e.Message; }
+            try {
+                main.BeginInvoke((Action)(() => {
+                    if (fail != null) {
+                        main.AddLog(DateTime.Now, "atualização falhou: " + fail, LogLevel.Error);
+                        MessageBox.Show(main, "A atualização não deu certo: " + fail, "WowPilot Sync", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return;
+                    }
+                    Updater.Restart(Application.ExecutablePath);
+                    Exit();
+                }));
+            } catch { }
+        }) { IsBackground = true }.Start();
+    }
+
     void Exit() {
         exiting = true;
         tray.Visible = false;
@@ -404,7 +481,7 @@ public class StatusDot : Control {
 }
 
 public class MainForm : Form {
-    public event Action OpenDashboard, OpenSettings, OpenShots;
+    public event Action OpenDashboard, OpenSettings, OpenShots, CheckForUpdate;
     readonly StatusDot dot = new StatusDot();
     readonly Label title = new Label(), site = new Label();
     readonly Label sentValue = new Label(), lastValue = new Label(), pendingValue = new Label(), shotsValue = new Label();
@@ -459,7 +536,8 @@ public class MainForm : Form {
         settingsBtn = MakeButton("Configurações…", (s, e) => { if (OpenSettings != null) OpenSettings(); });
         var dash = MakeButton("Abrir dashboard", (s, e) => { if (OpenDashboard != null) OpenDashboard(); });
         var shots = MakeButton("Pasta dos prints", (s, e) => { if (OpenShots != null) OpenShots(); });
-        buttons.Controls.AddRange(new Control[] { hide, settingsBtn, dash, shots });
+        var update = MakeButton("Atualizar", (s, e) => { if (CheckForUpdate != null) CheckForUpdate(); });
+        buttons.Controls.AddRange(new Control[] { hide, settingsBtn, dash, shots, update });
         AcceptButton = dash;
 
         Controls.Add(logWrap);
