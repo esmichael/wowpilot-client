@@ -228,6 +228,7 @@ public static class Theme {
     public static readonly Color Yellow = Color.FromArgb(214, 158, 0);
     public static readonly Color Red = Color.FromArgb(207, 34, 46);
     public static readonly Color Gray = Color.FromArgb(140, 145, 155);
+    public static readonly Color Accent = Color.FromArgb(37, 99, 235);
 
     public static Color For(SyncState s) {
         switch (s) {
@@ -288,6 +289,7 @@ public class TrayApp : ApplicationContext {
     readonly ToolStripMenuItem autoItem;
     SyncState lastState = SyncState.Starting;
     bool exiting, hintShown;
+    Action balloonClick;   // o que fazer ao clicar na notificação que está na tela
     public bool Ready;
 
     public TrayApp(string dir, EventWaitHandle showEvent, string url, bool minimized) {
@@ -317,7 +319,7 @@ public class TrayApp : ApplicationContext {
             main.Hide();
             if (!hintShown) {
                 hintShown = true;
-                tray.ShowBalloonTip(4000, "WowPilot Sync continua rodando", "Ele fica aqui na bandeja enviando os dados. Clique no ícone para abrir.", ToolTipIcon.Info);
+                Notify(4000, "WowPilot Sync continua rodando", "Ele fica aqui na bandeja enviando os dados. Clique no ícone para abrir.", ToolTipIcon.Info, ShowMain);
             }
         };
         IntPtr unused = main.Handle;  // cria a janela (BeginInvoke) mesmo escondida
@@ -335,6 +337,7 @@ public class TrayApp : ApplicationContext {
         menu.Opening += (s, e) => autoItem.Checked = Integration.AutoStart;
         tray.ContextMenuStrip = menu;
         tray.MouseClick += (s, e) => { if (e.Button == MouseButtons.Left) ShowMain(); };
+        tray.BalloonTipClicked += (s, e) => { Action a = balloonClick; balloonClick = null; (a ?? ShowMain)(); };
         tray.Icon = IconFor(SyncState.Starting);
         tray.Text = "WowPilot Sync";
         tray.Visible = true;
@@ -398,9 +401,10 @@ public class TrayApp : ApplicationContext {
         tray.Text = tip.Length > 63 ? tip.Substring(0, 63) : tip;
         if (engine.State != lastState) {
             if (engine.State == SyncState.Error)
-                tray.ShowBalloonTip(5000, "WowPilot Sync", engine.StateText + ". Abra as configurações para corrigir.", ToolTipIcon.Error);
+                Notify(5000, "WowPilot Sync", engine.StateText + ". Clique aqui para abrir as configurações.", ToolTipIcon.Error,
+                       () => { ShowMain(); main.ClickSettings(); });
             else if (engine.State == SyncState.Warning && lastState == SyncState.Ok)
-                tray.ShowBalloonTip(5000, "WowPilot Sync", "O site não respondeu. Os dados ficam guardados e são reenviados sozinhos.", ToolTipIcon.Warning);
+                Notify(5000, "WowPilot Sync", "O site não respondeu. Os dados ficam guardados e são reenviados sozinhos.", ToolTipIcon.Warning, ShowMain);
             lastState = engine.State;
         }
     }
@@ -409,6 +413,11 @@ public class TrayApp : ApplicationContext {
         main.Show();
         if (main.WindowState == FormWindowState.Minimized) main.WindowState = FormWindowState.Normal;
         main.Activate();
+    }
+
+    void Notify(int ms, string title, string text, ToolTipIcon icon, Action onClick) {
+        balloonClick = onClick;
+        tray.ShowBalloonTip(ms, title, text, icon);
     }
 
     // ---------------------------------------------------------------- atualização
@@ -429,9 +438,10 @@ public class TrayApp : ApplicationContext {
             if (!quiet) MessageBox.Show(main, "Você já está na versão mais recente (" + Http.Version + ").", "WowPilot Sync", MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
+        main.ShowUpdate(r.Tag);
         if (quiet) {
-            main.AddLog(DateTime.Now, "versão nova disponível: " + r.Tag + " — clique em Atualizar", LogLevel.Warn);
-            tray.ShowBalloonTip(5000, "WowPilot Sync", "A versão " + r.Tag + " está disponível. Abra o programa e clique em Atualizar.", ToolTipIcon.Info);
+            main.AddLog(DateTime.Now, "versão nova disponível: " + r.Tag + " — clique em Atualizar para " + r.Tag, LogLevel.Warn);
+            Notify(8000, "WowPilot Sync " + r.Tag + " disponível", "Clique aqui para ver e atualizar.", ToolTipIcon.Info, ShowMain);
             return;
         }
         if (MessageBox.Show(main, "Atualizar para a versão " + r.Tag + "?\n\nO programa baixa a versão nova, confere os arquivos, atualiza o addon " +
@@ -486,7 +496,7 @@ public class MainForm : Form {
     readonly Label title = new Label(), site = new Label();
     readonly Label sentValue = new Label(), lastValue = new Label(), pendingValue = new Label(), shotsValue = new Label();
     readonly ListView log = new ListView();
-    readonly Button settingsBtn;
+    readonly Button settingsBtn, updateBtn;
 
     public MainForm() {
         Text = "WowPilot Sync";
@@ -536,8 +546,8 @@ public class MainForm : Form {
         settingsBtn = MakeButton("Configurações…", (s, e) => { if (OpenSettings != null) OpenSettings(); });
         var dash = MakeButton("Abrir dashboard", (s, e) => { if (OpenDashboard != null) OpenDashboard(); });
         var shots = MakeButton("Pasta dos prints", (s, e) => { if (OpenShots != null) OpenShots(); });
-        var update = MakeButton("Atualizar", (s, e) => { if (CheckForUpdate != null) CheckForUpdate(); });
-        buttons.Controls.AddRange(new Control[] { hide, settingsBtn, dash, shots, update });
+        updateBtn = MakeButton("Atualizar", (s, e) => { if (CheckForUpdate != null) CheckForUpdate(); });
+        buttons.Controls.AddRange(new Control[] { hide, settingsBtn, dash, shots, updateBtn });
         AcceptButton = dash;
 
         Controls.Add(logWrap);
@@ -565,6 +575,17 @@ public class MainForm : Form {
     }
 
     public void ClickSettings() { settingsBtn.PerformClick(); }
+
+    // há versão nova: o botão vira "Atualizar para vX.Y.Z", em destaque
+    public void ShowUpdate(string tag) {
+        updateBtn.Text = "Atualizar para " + tag;
+        updateBtn.UseVisualStyleBackColor = false;
+        updateBtn.FlatStyle = FlatStyle.Flat;
+        updateBtn.FlatAppearance.BorderColor = Theme.Accent;
+        updateBtn.BackColor = Theme.Accent;
+        updateBtn.ForeColor = Color.White;
+        updateBtn.Font = new Font(Font, FontStyle.Bold);
+    }
 
     public void Bind(Engine e, Config cfg) {
         log.Items.Clear();

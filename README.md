@@ -65,7 +65,8 @@ No ícone do WowPilot Sync (perto do relógio): **Abrir dashboard**, **Configura
 
 ### Atualizar
 
-Ao abrir, o WowPilot Sync avisa quando há versão nova. Clique em **Atualizar** na janela do programa: ele baixa a
+Ao abrir, o WowPilot Sync avisa quando há versão nova: aparece uma notificação do Windows (clique nela para abrir
+o programa) e o botão vira **Atualizar para vX.Y.Z**, em destaque. Clique nele: ele baixa a
 versão mais recente daqui do GitHub, confere os arquivos (SHA-256), atualiza o addon em todas as pastas do jogo onde
 ele está instalado e reabre sozinho. Depois, no jogo, dê `/reload`.
 
