@@ -22,6 +22,15 @@ tira um print e esconde o código; o cliente lê o PNG, decodifica e envia por H
 O formato do código (cabeçalho, paleta, páginas, compressão) está documentado no topo de `WowPilotLive.lua` e em
 `tests/livecode_ref.py`, que é o decodificador de referência.
 
+A busca das instalações do jogo também mora no código compartilhado (`WowInstall` em `Decoder.cs`): chaves de
+desinstalação do Battle.net no registro, a chave antiga da Blizzard e caminhos comuns em todos os discos. Cada
+variação é uma pasta `_nome_` com `.flavor.info` (produto: `wow`, `wowf`…) ou `Wow*.exe`; pastas vazias de variações
+desinstaladas ficam de fora. Para ver o que o cliente acha numa máquina:
+
+```bash
+WowPilotSync.exe --list-games > jogos.txt
+```
+
 O addon sempre coleta o chat; quem decide se ele sai do PC é o cliente: com `SendChat` desligado (padrão),
 `Decoder.DropKey` tira a chave `chat` do JSON antes de enviar ou guardar como pendente. O decodificador C# existe em dois lugares,
 `client/WowPilotSync/Decoder.cs` e embutido no `.ps1`: mantenha os dois iguais (o teste confere).
@@ -59,7 +68,7 @@ em `client/WowPilotSync/Sync.cs`, `$ClientVersion` no `.ps1` e `client/WowPilotS
 Para publicar, suba a versão nesses arquivos, faça o commit e crie a tag:
 
 ```bash
-git tag v1.2.1 && git push origin v1.2.1
+git tag v1.3.1 && git push origin v1.3.1
 ```
 
 O workflow confere as versões, compila e publica o Release com `WowPilotSync.exe` e `WowPilot.zip`.

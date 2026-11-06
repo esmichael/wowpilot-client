@@ -132,6 +132,31 @@ def run_client(shots: list[list[Image.Image]], exe: bool = False, chat: bool = F
     return Sink.got, left, r.stdout + r.stderr
 
 
+def check_games(check, exe: Path):
+    """Busca das variações do jogo (WowInstall, a mesma fonte no .exe e no .ps1) numa instalação de mentira."""
+    temp = subprocess.run(["cmd.exe", "/c", "echo %TEMP%"], capture_output=True, text=True).stdout.strip()
+    root = Path(subprocess.run(["wslpath", "-u", temp], capture_output=True, text=True).stdout.strip()) / "wowpilot_games" / "World of Warcraft"
+    shutil.rmtree(root.parent, ignore_errors=True)
+    for folder, product, exe_name in (("_retail_", "wow", "Wow.exe"), ("_forever_", "wowf", "Wow.exe"),
+                                      ("_xptr_", "wowxptr", "WowT.exe"), ("_novo_", None, "Wow.exe"), ("_classic_", None, None)):
+        d = root / folder
+        d.mkdir(parents=True)
+        if product:
+            (d / ".flavor.info").write_bytes(f"Product Flavor!STRING:0\r\n{product}\r\n".encode())
+        if exe_name:
+            (d / exe_name).write_bytes(b"")
+    try:
+        for arg in (root, root / "_forever_"):   # a pasta World of Warcraft ou a de uma variação
+            r = subprocess.run([str(exe), "--list-games", "--wow", win_path(arg)], capture_output=True, text=True,
+                               encoding="utf-8", errors="replace", timeout=60)
+            got = [line.split("\t")[:2] for line in r.stdout.splitlines() if line.strip()]
+            check(f"WowPilotSync.exe: acha as variações a partir de {arg.name} (Retail, Forever, sem pasta vazia)",
+                  got == [["Retail", "wow"], ["WoW: Forever", "wowf"], ["Novo", "novo"], ["PTR 2", "wowxptr"]],
+                  r.stdout + r.stderr)
+    finally:
+        shutil.rmtree(root.parent, ignore_errors=True)
+
+
 def main():
     failed = 0
 
@@ -209,6 +234,9 @@ def main():
             check(f"{name}: com o chat desligado (padrão), sem chat e o resto igual",
                   '"chat"' in payload and [json.loads(b) for b in bodies] == want
                   and all('"chat"' not in b for b in bodies), log)
+        exe = client / "WowPilotSync.exe"
+        if exe.exists():
+            check_games(check, exe)
     else:
         print("  (sem powershell.exe: clientes não testados)")
     shutil.rmtree(tmp, ignore_errors=True)

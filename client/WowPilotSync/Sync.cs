@@ -67,26 +67,9 @@ public class Config {
         return Regex.Replace(server, "^(https?://)localhost(?=[:/]|$)", "${1}127.0.0.1", RegexOptions.IgnoreCase);
     }
 
+    // vazio = automático (WowInstall.Find); escolhida pelo usuário = a pasta "World of Warcraft"
     public static string NormalizeWowPath(string p) {
-        p = (p ?? "").Trim().TrimEnd('\\', '/');
-        if (p.Length == 0) p = DetectWowPath();
-        if (!string.Equals(Path.GetFileName(p), "_retail_", StringComparison.OrdinalIgnoreCase)
-            && Directory.Exists(Path.Combine(p, "_retail_")))
-            p = Path.Combine(p, "_retail_");
-        return p;
-    }
-
-    public static string DetectWowPath() {
-        foreach (string key in new[] { @"SOFTWARE\WOW6432Node\Blizzard Entertainment\World of Warcraft",
-                                       @"SOFTWARE\Blizzard Entertainment\World of Warcraft" }) {
-            try {
-                using (RegistryKey k = Registry.LocalMachine.OpenSubKey(key)) {
-                    string p = k == null ? null : k.GetValue("InstallPath") as string;
-                    if (!string.IsNullOrEmpty(p) && Directory.Exists(p)) return p.TrimEnd('\\');
-                }
-            } catch { }
-        }
-        return @"C:\Program Files (x86)\World of Warcraft\_retail_";
+        return WowInstall.RootOf(p);
     }
 }
 
@@ -98,7 +81,7 @@ public class HttpResult {
 }
 
 public static class Http {
-    public const string Version = "1.2.0";
+    public const string Version = "1.3.0";
 
     static Http() {
         try { ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12; } catch { }
@@ -154,8 +137,12 @@ public enum LogLevel { Info, Ok, Warn, Error }
 
 public class Engine {
     public readonly Config Cfg;
-    public readonly string ConfigDir, PendingDir, LogFile, ShotDir, ChatLog;
-    public readonly string[] ShotDirs;   // ShotDir + as pastas Screenshots das outras versões (_forever_, _classic_…)
+    public readonly string ConfigDir, PendingDir, LogFile;
+    // variações do jogo achadas (refeito a cada minuto: pega uma variação instalada com o programa aberto)
+    public List<Flavor> Flavors = new List<Flavor>();
+    public string[] ShotDirs = new string[0];   // Screenshots de cada variação (Retail primeiro)
+    public string ShotDir = "", ChatLog = "";   // a primeira; chat log do Retail (o único que esconde chat em combate)
+    readonly string fixedShotDir;
     public int MaxAgeHours = 24;
 
     public event Action<DateTime, string, LogLevel> Logged;
@@ -169,7 +156,7 @@ public class Engine {
 
     readonly Assembler assembler = new Assembler();
     readonly Dictionary<string, string> seen = new Dictionary<string, string>();
-    DateTime lastChat = DateTime.MinValue, lastPendingTry = DateTime.MinValue;
+    DateTime lastChat = DateTime.MinValue, lastPendingTry = DateTime.MinValue, lastScan = DateTime.MinValue;
     Thread thread;
     volatile bool stop;
     readonly ManualResetEvent wake = new ManualResetEvent(false);
@@ -179,30 +166,34 @@ public class Engine {
         ConfigDir = configDir;
         PendingDir = Path.Combine(configDir, "pendentes");
         LogFile = Path.Combine(configDir, "WowPilotSync.log");
-        ShotDir = string.IsNullOrEmpty(shotDir) ? Path.Combine(cfg.WowPath, "Screenshots") : shotDir;
-        ChatLog = Path.Combine(cfg.WowPath, @"Logs\WoWChatLog.txt");
-        ShotDirs = string.IsNullOrEmpty(shotDir) ? FlavorShotDirs(cfg.WowPath, ShotDir) : new[] { ShotDir };
+        fixedShotDir = shotDir;
+        Scan();
         Directory.CreateDirectory(PendingDir);
         try {
             if (File.Exists(LogFile) && new FileInfo(LogFile).Length > 1 << 20) { File.Copy(LogFile, LogFile + ".old", true); File.Delete(LogFile); }
         } catch { }
     }
 
-    // _retail_\Screenshots primeiro; depois _forever_, _classic_era_… que existirem ao lado (sem _ptr_/_beta_)
-    static string[] FlavorShotDirs(string wowPath, string main) {
-        var dirs = new List<string> { main };
-        try {
-            string root = Path.GetDirectoryName(wowPath);
-            if (!string.IsNullOrEmpty(root) && Directory.Exists(root)) {
-                foreach (string d in Directory.GetDirectories(root, "_*_").OrderBy(x => x, StringComparer.OrdinalIgnoreCase)) {
-                    string name = Path.GetFileName(d).ToLowerInvariant();
-                    if (name.Contains("ptr") || name.Contains("beta")) continue;
-                    string shots = Path.Combine(d, "Screenshots");
-                    if (!dirs.Any(x => string.Equals(x, shots, StringComparison.OrdinalIgnoreCase))) dirs.Add(shots);
-                }
-            }
-        } catch { }
-        return dirs.ToArray();
+    // procura as variações do jogo; true se a lista mudou
+    bool Scan() {
+        lastScan = DateTime.Now;
+        List<Flavor> found = WowInstall.Find(Cfg.WowPath);
+        bool changed = WowInstall.Describe(found) != WowInstall.Describe(Flavors) || found.Count != Flavors.Count;
+        Flavors = found;
+        if (!string.IsNullOrEmpty(fixedShotDir)) ShotDirs = new[] { fixedShotDir };
+        else ShotDirs = found.Select(f => f.Screenshots).ToArray();
+        ShotDir = ShotDirs.Length > 0 ? ShotDirs[0] : "";
+        Flavor chat = found.FirstOrDefault(f => string.Equals(f.Product, "wow", StringComparison.OrdinalIgnoreCase));
+        ChatLog = chat != null ? chat.ChatLog : "";
+        return changed;
+    }
+
+    void LogFlavors() {
+        if (Flavors.Count == 0) {
+            Log("não achei o World of Warcraft neste PC — escolha a pasta em Configurações", LogLevel.Warn);
+            return;
+        }
+        foreach (Flavor f in Flavors) Log("jogo: " + f.Name + " — " + f.Dir, LogLevel.Info);
     }
 
     void Log(string msg, LogLevel level) {
@@ -241,9 +232,8 @@ public class Engine {
 
     bool Connect() {
         Log("WowPilot Sync " + Http.Version + " — site: " + Cfg.Server, LogLevel.Info);
-        Log("prints: " + string.Join(" · ", ShotDirs), LogLevel.Info);
+        LogFlavors();
         Log(Cfg.SendChat ? "chat: enviado" + (Cfg.NoChatLog ? "" : " (com o chat log)") : "chat: não enviado", LogLevel.Info);
-        if (!Directory.Exists(ShotDir)) Log("a pasta Screenshots ainda não existe — esperando o primeiro print", LogLevel.Warn);
         if (File.Exists(ChatLog)) lastChat = File.GetLastWriteTimeUtc(ChatLog);  // só manda quando mudar
         HttpResult r;
         User = Http.WhoAmI(Cfg, out r);
@@ -287,6 +277,7 @@ public class Engine {
             }
         }
         if (Cfg.SendChat && !Cfg.NoChatLog) SendChatLog();
+        if (!once && (DateTime.Now - lastScan).TotalSeconds >= 60 && Scan()) { LogFlavors(); Fire(); }
         if ((DateTime.Now - lastPendingTry).TotalSeconds >= 30) {
             lastPendingTry = DateTime.Now;
             SendPending();

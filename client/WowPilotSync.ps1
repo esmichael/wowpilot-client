@@ -18,7 +18,8 @@
 .PARAMETER Token
   Token gerado na página "Configurar" do site.
 .PARAMETER WowPath
-  Pasta _retail_ do WoW. Padrão: detectada pelo registro / C:\Program Files (x86)\World of Warcraft\_retail_
+  Pasta "World of Warcraft" (a que tem _retail_, _forever_…). Padrão: automático — procura o que o Battle.net
+  registrou e os caminhos comuns em todos os discos, e vigia todas as variações instaladas (Retail, Forever, Classic…).
 .PARAMETER Chat
   Envia as mensagens do chat (padrão: não envia).
 .PARAMETER NoChatLog
@@ -45,7 +46,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$ClientVersion = '1.2.0'
+$ClientVersion = '1.3.0'
 $ConfigFile = Join-Path $ConfigDir 'config.json'
 $PendingDir = Join-Path $ConfigDir 'pendentes'
 New-Item -ItemType Directory -Force -Path $ConfigDir, $PendingDir | Out-Null
@@ -76,34 +77,8 @@ if ($cfg.Server -notmatch '^https?://') { $cfg.Server = 'https://' + $cfg.Server
 $cfg.Server = $cfg.Server -replace '^(https?://)localhost(?=[:/]|$)', '${1}127.0.0.1'
 $SendChat = $Chat -or ($cfg.SendChat -eq $true)
 
-if (-not $cfg.WowPath) {
-    foreach ($key in 'HKLM:\SOFTWARE\WOW6432Node\Blizzard Entertainment\World of Warcraft',
-                     'HKLM:\SOFTWARE\Blizzard Entertainment\World of Warcraft') {
-        try {
-            $p = (Get-ItemProperty -Path $key -ErrorAction Stop).InstallPath
-            if ($p -and (Test-Path $p)) { $cfg.WowPath = $p; break }
-        } catch { }
-    }
-    if (-not $cfg.WowPath) { $cfg.WowPath = 'C:\Program Files (x86)\World of Warcraft\_retail_' }
-}
-$cfg.WowPath = ([string]$cfg.WowPath).TrimEnd('\')
-if ((Split-Path $cfg.WowPath -Leaf) -ne '_retail_' -and (Test-Path (Join-Path $cfg.WowPath '_retail_'))) {
-    $cfg.WowPath = Join-Path $cfg.WowPath '_retail_'
-}
+if ($cfg.WowPath) { $cfg.WowPath = ([string]$cfg.WowPath).TrimEnd('\') }
 ($cfg | ConvertTo-Json) | Set-Content -Path $ConfigFile -Encoding UTF8
-
-$ShotDir = if ($ScreenshotDir) { $ScreenshotDir } else { Join-Path $cfg.WowPath 'Screenshots' }
-# também as outras versões instaladas ao lado (_forever_, _classic_era_…), sem PTR/beta
-$ShotDirs = @($ShotDir)
-if (-not $ScreenshotDir) {
-    $wowRoot = Split-Path $cfg.WowPath -Parent
-    foreach ($d in (Get-ChildItem -Path $wowRoot -Directory -Filter '_*_' -ErrorAction SilentlyContinue | Sort-Object Name)) {
-        if ($d.Name -match 'ptr|beta') { continue }
-        $s = Join-Path $d.FullName 'Screenshots'
-        if ($ShotDirs -notcontains $s) { $ShotDirs += $s }
-    }
-}
-$ChatLog = Join-Path $cfg.WowPath 'Logs\WoWChatLog.txt'
 
 # TLS 1.2 no Windows PowerShell 5.1
 try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch { }
@@ -117,6 +92,7 @@ using System.Drawing.Imaging;
 using System.IO;
 using System.IO.Compression;
 using System.Runtime.InteropServices;
+using Microsoft.Win32;
 
 namespace WowPilot {
 public class Frame {
@@ -443,16 +419,161 @@ public class Assembler {
 
     public int Waiting { get { return partial.Count; } }
 }
+// Instalações do WoW neste PC. Cada variação (Retail, Forever, Classic, PTR…) é uma pasta _nome_ dentro da pasta
+// "World of Warcraft", com um .flavor.info que diz o produto ("wow", "wowf"…). Pastas que sobraram de variações
+// desinstaladas não têm esse arquivo nem o Wow*.exe e ficam de fora.
+public class Flavor {
+    public string Dir, Product, Name;
+    public string Screenshots { get { return Path.Combine(Dir, "Screenshots"); } }
+    public string ChatLog { get { return Path.Combine(Dir, @"Logs\WoWChatLog.txt"); } }
+}
+
+public static class WowInstall {
+    static readonly Dictionary<string, string> Names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
+        { "wow", "Retail" }, { "wowf", "WoW: Forever" }, { "wowt", "PTR" }, { "wowxptr", "PTR 2" }, { "wow_beta", "Beta" },
+        { "wow_classic", "Classic" }, { "wow_classic_era", "Classic Era" }, { "wow_classic_ptr", "Classic PTR" },
+        { "wow_classic_beta", "Classic Beta" }, { "wow_classic_era_ptr", "Classic Era PTR" } };
+
+    static readonly string[] Common = { @"Program Files (x86)\World of Warcraft", @"Program Files\World of Warcraft",
+        @"World of Warcraft", @"Games\World of Warcraft", @"Jogos\World of Warcraft", @"Blizzard\World of Warcraft",
+        @"Battle.net\World of Warcraft", @"Blizzard Games\World of Warcraft" };
+
+    // variações encontradas: Retail primeiro, depois Forever, depois o resto em ordem alfabética.
+    // "chosen" (opcional) é a pasta escolhida pelo usuário; se não tiver nenhuma variação, a busca automática vale.
+    public static List<Flavor> Find(string chosen) {
+        var found = new List<Flavor>();
+        if (!string.IsNullOrEmpty(chosen)) AddFlavors(found, RootOf(chosen));
+        if (found.Count == 0) foreach (string root in Roots()) AddFlavors(found, root);
+        found.Sort((a, b) => {
+            int r = Rank(a).CompareTo(Rank(b));
+            return r != 0 ? r : string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
+        });
+        return found;
+    }
+
+    public static string Describe(List<Flavor> flavors) {
+        var names = new List<string>();
+        foreach (Flavor f in flavors) names.Add(f.Name);
+        return string.Join(" · ", names.ToArray());
+    }
+
+    // pasta de uma variação (_retail_) ou de dentro dela → a pasta "World of Warcraft" que contém as variações
+    public static string RootOf(string p) {
+        p = (p ?? "").Trim().TrimEnd('\\', '/');
+        if (p.Length == 0) return p;
+        try { if (IsFlavor(p)) return Path.GetDirectoryName(p); } catch { }
+        return p;
+    }
+
+    static int Rank(Flavor f) {
+        if (string.Equals(f.Product, "wow", StringComparison.OrdinalIgnoreCase)) return 0;
+        if (string.Equals(f.Product, "wowf", StringComparison.OrdinalIgnoreCase)) return 1;
+        return 2;
+    }
+
+    static bool IsFlavor(string dir) {
+        return File.Exists(Path.Combine(dir, ".flavor.info")) || Directory.GetFiles(dir, "Wow*.exe").Length > 0;
+    }
+
+    static void AddFlavors(List<Flavor> found, string root) {
+        try {
+            if (string.IsNullOrEmpty(root) || !Directory.Exists(root)) return;
+            foreach (string dir in Directory.GetDirectories(root, "_*_")) {
+                if (!IsFlavor(dir)) continue;
+                bool dup = false;
+                foreach (Flavor f in found) if (string.Equals(f.Dir, dir, StringComparison.OrdinalIgnoreCase)) dup = true;
+                if (dup) continue;
+                string product = ReadProduct(dir), folder = Path.GetFileName(dir), name;
+                if (product == null || !Names.TryGetValue(product, out name)) name = Pretty(folder);
+                found.Add(new Flavor { Dir = dir, Product = product ?? folder.Trim('_'), Name = name });
+            }
+        } catch { }
+    }
+
+    // .flavor.info: "Product Flavor!STRING:0" e, na linha seguinte, o código do produto
+    static string ReadProduct(string dir) {
+        try {
+            string[] lines = File.ReadAllLines(Path.Combine(dir, ".flavor.info"));
+            for (int i = 1; i < lines.Length; i++) if (lines[i].Trim().Length > 0) return lines[i].Trim();
+        } catch { }
+        return null;
+    }
+
+    static string Pretty(string folder) {   // "_classic_era_" → "Classic era"
+        string s = folder.Trim('_').Replace('_', ' ');
+        return s.Length == 0 ? folder : char.ToUpperInvariant(s[0]) + s.Substring(1);
+    }
+
+    // onde procurar: o que o instalador do Battle.net registrou e os caminhos comuns em todos os discos
+    static List<string> Roots() {
+        var roots = new List<string>();
+        foreach (string view in new[] { @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
+                                        @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall" }) {
+            try {
+                using (RegistryKey un = Registry.LocalMachine.OpenSubKey(view)) {
+                    if (un == null) continue;
+                    foreach (string name in un.GetSubKeyNames()) {
+                        using (RegistryKey k = un.OpenSubKey(name)) {
+                            string display = k == null ? null : k.GetValue("DisplayName") as string;
+                            if (display == null || !display.StartsWith("World of Warcraft", StringComparison.OrdinalIgnoreCase)) continue;
+                            AddRoot(roots, k.GetValue("InstallLocation") as string);
+                        }
+                    }
+                }
+            } catch { }
+        }
+        foreach (string key in new[] { @"SOFTWARE\WOW6432Node\Blizzard Entertainment\World of Warcraft",
+                                       @"SOFTWARE\Blizzard Entertainment\World of Warcraft" }) {
+            try {
+                using (RegistryKey k = Registry.LocalMachine.OpenSubKey(key))
+                    if (k != null) AddRoot(roots, k.GetValue("InstallPath") as string);
+            } catch { }
+        }
+        try {
+            foreach (DriveInfo d in DriveInfo.GetDrives()) {
+                if (d.DriveType != DriveType.Fixed || !d.IsReady) continue;
+                foreach (string c in Common) AddRoot(roots, Path.Combine(d.RootDirectory.FullName, c));
+            }
+        } catch { }
+        return roots;
+    }
+
+    static void AddRoot(List<string> roots, string p) {
+        string root = RootOf(p);
+        if (root.Length == 0 || !Directory.Exists(root)) return;
+        foreach (string r in roots) if (string.Equals(r, root, StringComparison.OrdinalIgnoreCase)) return;
+        roots.Add(root);
+    }
+}
 }
 '@
 
 if (-not ('WowPilot.Decoder' -as [type])) {
     if ($PSVersionTable.PSEdition -eq 'Core') {
-        Add-Type -TypeDefinition $decoderSource -ReferencedAssemblies System.Drawing.Common, System.Drawing.Primitives, System.IO.Compression, System.Collections, System.Runtime.InteropServices
+        Add-Type -TypeDefinition $decoderSource -ReferencedAssemblies System.Drawing.Common, System.Drawing.Primitives, System.IO.Compression, System.Collections, System.Runtime.InteropServices, Microsoft.Win32.Registry, System.IO.FileSystem.DriveInfo
     } else {
         Add-Type -TypeDefinition $decoderSource -ReferencedAssemblies System.Drawing
     }
 }
+
+# ---------------------------------------------------------------- variações do jogo instaladas
+$Flavors = @(); $ShotDirs = @(); $ShotDir = ''; $ChatLog = ''
+function Update-Flavors {
+    $found = @([WowPilot.WowInstall]::Find([string]$cfg.WowPath))
+    $changed = (($found | ForEach-Object { $_.Dir }) -join '|') -ne (($script:Flavors | ForEach-Object { $_.Dir }) -join '|')
+    $script:Flavors = $found
+    $script:ShotDirs = if ($ScreenshotDir) { @($ScreenshotDir) } else { @($found | ForEach-Object { $_.Screenshots }) }
+    $script:ShotDir = if ($script:ShotDirs.Count) { $script:ShotDirs[0] } else { '' }
+    $retail = @($found | Where-Object { $_.Product -eq 'wow' })
+    $script:ChatLog = if ($retail.Count) { $retail[0].ChatLog } else { '' }   # só o Retail esconde chat em combate
+    $script:lastScan = Get-Date
+    return $changed
+}
+function Write-Flavors {
+    if (-not $Flavors.Count) { Write-Log 'não achei o World of Warcraft neste PC — use -WowPath "D:\...\World of Warcraft"' 'Yellow'; return }
+    foreach ($f in $Flavors) { Write-Log "jogo: $($f.Name) — $($f.Dir)" }
+}
+[void](Update-Flavors)
 
 # ---------------------------------------------------------------- envio
 $Headers = @{ 'Authorization' = "Token $($cfg.Token)"; 'X-WowPilot-Client' = "ps1/$ClientVersion" }
@@ -504,7 +625,7 @@ $seen = @{}          # nome → assinatura (tempo|tamanho) ou 'done'
 $sent = 0
 $started = Get-Date
 $lastChat = $null
-if (Test-Path $ChatLog) { $lastChat = (Get-Item $ChatLog).LastWriteTimeUtc }  # só manda quando mudar
+if ($ChatLog -and (Test-Path $ChatLog)) { $lastChat = (Get-Item $ChatLog).LastWriteTimeUtc }  # só manda quando mudar
 $lastPendingTry = [DateTime]::MinValue
 
 if ((Test-Path $LogFile) -and (Get-Item $LogFile).Length -gt 1MB) { Move-Item $LogFile "$LogFile.old" -Force }
@@ -512,8 +633,7 @@ Write-Host ''
 Write-Host "WowPilot Sync $ClientVersion" -ForegroundColor Cyan
 Write-Log "site: $($cfg.Server)"
 Write-Log $(if ($SendChat) { "chat: enviado" + $(if ($NoChatLog) { "" } else { " (com o chat log)" }) } else { "chat: não enviado" })
-Write-Log "prints: $($ShotDirs -join ' · ')"
-if (-not (Test-Path $ShotDir)) { Write-Log 'a pasta Screenshots ainda não existe — esperando o primeiro print' 'Yellow' }
+Write-Flavors
 try {
     $who = Invoke-RestMethod -Uri ($cfg.Server + '/api/whoami') -Headers $Headers -UseBasicParsing -TimeoutSec 15
     Write-Log "conectado como $($who.user)" 'Green'
@@ -526,6 +646,7 @@ try {
 Write-Log 'vigiando… (Ctrl+C para sair)'
 
 while ($true) {
+    if (-not $Once -and ((Get-Date) - $lastScan).TotalSeconds -ge 60 -and (Update-Flavors)) { Write-Flavors }
     foreach ($dir in $ShotDirs) {
         if (-not (Test-Path $dir)) { continue }
         $files = Get-ChildItem -Path $dir -File -ErrorAction SilentlyContinue |
@@ -563,7 +684,7 @@ while ($true) {
     }
 
     # chat log do jogo (gravado pelo WoW no logout): manda o fim do arquivo quando muda
-    if ($SendChat -and -not $NoChatLog -and (Test-Path $ChatLog)) {
+    if ($SendChat -and -not $NoChatLog -and $ChatLog -and (Test-Path $ChatLog)) {
         $mt = (Get-Item $ChatLog).LastWriteTimeUtc
         if ($mt -ne $lastChat -and ((Get-Date).ToUniversalTime() - $mt).TotalSeconds -gt 3) {
             $lastChat = $mt

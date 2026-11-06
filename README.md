@@ -35,13 +35,15 @@ este PC à sua conta.
 3. Na janela de configuração, preencha:
    - **Endereço do site**: o endereço do WowPilot que você usa;
    - **Token**: o que você gerou na página Configurar;
-   - **Pasta do WoW**: normalmente é encontrada sozinha.
+   - **Pasta do WoW**: deixe em branco. O programa acha o jogo sozinho (em qualquer disco) e mostra embaixo o que
+     encontrou, por exemplo *Encontrado: Retail · WoW: Forever*. Só escolha a pasta se ele não achar.
 4. Clique em **Testar conexão** e depois em **Salvar**.
 
 Dica: na página Configurar do site, o botão **Configurar o WowPilot Sync** preenche endereço e token sozinho
 (com o programa já aberto uma vez).
 
-Pronto. Deixe o WowPilot Sync aberto enquanto joga; ele fica como um ícone perto do relógio.
+Pronto. Deixe o WowPilot Sync aberto enquanto joga; ele fica como um ícone perto do relógio. Ele vigia ao mesmo
+tempo todas as variações instaladas (Retail, WoW: Forever, Classic, PTR…), inclusive uma que você instalar depois.
 
 ## Uso no dia a dia
 
@@ -100,7 +102,11 @@ Os envios ficam guardados e são reenviados sozinhos quando o site voltar.
 
 **O código colorido aparece mas o programa não lê.**
 Filtros de imagem, HDR, ou programas que mexem nas cores da tela podem atrapalhar. Teste sem eles. Confira também se
-a pasta do WoW nas configurações é a do jogo que você está usando (`_retail_` ou `_forever_`).
+o jogo aparece em **Jogos**, na janela do programa.
+
+**O programa não achou o jogo.**
+Em **Configurações…**, clique em **Procurar…** e escolha a pasta `World of Warcraft` (a que tem `_retail_`,
+`_forever_`…).
 
 **O Windows bloqueou o programa.**
 Veja o passo 3.2 da instalação.

@@ -1,4 +1,4 @@
-// Decodificador do código de pixels — mesma fonte embutida em client/WowPilotSync.ps1 (manter as duas iguais;
+// Decodificador do código de pixels e busca das instalações do WoW — mesma fonte embutida em client/WowPilotSync.ps1 (manter as duas iguais;
 // tests/test_live_decode.py confere). C# 5: compila com o csc.exe do .NET Framework 4.
 using System;
 using System.Collections.Generic;
@@ -7,6 +7,7 @@ using System.Drawing.Imaging;
 using System.IO;
 using System.IO.Compression;
 using System.Runtime.InteropServices;
+using Microsoft.Win32;
 
 namespace WowPilot {
 public class Frame {
@@ -332,5 +333,131 @@ public class Assembler {
     }
 
     public int Waiting { get { return partial.Count; } }
+}
+// Instalações do WoW neste PC. Cada variação (Retail, Forever, Classic, PTR…) é uma pasta _nome_ dentro da pasta
+// "World of Warcraft", com um .flavor.info que diz o produto ("wow", "wowf"…). Pastas que sobraram de variações
+// desinstaladas não têm esse arquivo nem o Wow*.exe e ficam de fora.
+public class Flavor {
+    public string Dir, Product, Name;
+    public string Screenshots { get { return Path.Combine(Dir, "Screenshots"); } }
+    public string ChatLog { get { return Path.Combine(Dir, @"Logs\WoWChatLog.txt"); } }
+}
+
+public static class WowInstall {
+    static readonly Dictionary<string, string> Names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) {
+        { "wow", "Retail" }, { "wowf", "WoW: Forever" }, { "wowt", "PTR" }, { "wowxptr", "PTR 2" }, { "wow_beta", "Beta" },
+        { "wow_classic", "Classic" }, { "wow_classic_era", "Classic Era" }, { "wow_classic_ptr", "Classic PTR" },
+        { "wow_classic_beta", "Classic Beta" }, { "wow_classic_era_ptr", "Classic Era PTR" } };
+
+    static readonly string[] Common = { @"Program Files (x86)\World of Warcraft", @"Program Files\World of Warcraft",
+        @"World of Warcraft", @"Games\World of Warcraft", @"Jogos\World of Warcraft", @"Blizzard\World of Warcraft",
+        @"Battle.net\World of Warcraft", @"Blizzard Games\World of Warcraft" };
+
+    // variações encontradas: Retail primeiro, depois Forever, depois o resto em ordem alfabética.
+    // "chosen" (opcional) é a pasta escolhida pelo usuário; se não tiver nenhuma variação, a busca automática vale.
+    public static List<Flavor> Find(string chosen) {
+        var found = new List<Flavor>();
+        if (!string.IsNullOrEmpty(chosen)) AddFlavors(found, RootOf(chosen));
+        if (found.Count == 0) foreach (string root in Roots()) AddFlavors(found, root);
+        found.Sort((a, b) => {
+            int r = Rank(a).CompareTo(Rank(b));
+            return r != 0 ? r : string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
+        });
+        return found;
+    }
+
+    public static string Describe(List<Flavor> flavors) {
+        var names = new List<string>();
+        foreach (Flavor f in flavors) names.Add(f.Name);
+        return string.Join(" · ", names.ToArray());
+    }
+
+    // pasta de uma variação (_retail_) ou de dentro dela → a pasta "World of Warcraft" que contém as variações
+    public static string RootOf(string p) {
+        p = (p ?? "").Trim().TrimEnd('\\', '/');
+        if (p.Length == 0) return p;
+        try { if (IsFlavor(p)) return Path.GetDirectoryName(p); } catch { }
+        return p;
+    }
+
+    static int Rank(Flavor f) {
+        if (string.Equals(f.Product, "wow", StringComparison.OrdinalIgnoreCase)) return 0;
+        if (string.Equals(f.Product, "wowf", StringComparison.OrdinalIgnoreCase)) return 1;
+        return 2;
+    }
+
+    static bool IsFlavor(string dir) {
+        return File.Exists(Path.Combine(dir, ".flavor.info")) || Directory.GetFiles(dir, "Wow*.exe").Length > 0;
+    }
+
+    static void AddFlavors(List<Flavor> found, string root) {
+        try {
+            if (string.IsNullOrEmpty(root) || !Directory.Exists(root)) return;
+            foreach (string dir in Directory.GetDirectories(root, "_*_")) {
+                if (!IsFlavor(dir)) continue;
+                bool dup = false;
+                foreach (Flavor f in found) if (string.Equals(f.Dir, dir, StringComparison.OrdinalIgnoreCase)) dup = true;
+                if (dup) continue;
+                string product = ReadProduct(dir), folder = Path.GetFileName(dir), name;
+                if (product == null || !Names.TryGetValue(product, out name)) name = Pretty(folder);
+                found.Add(new Flavor { Dir = dir, Product = product ?? folder.Trim('_'), Name = name });
+            }
+        } catch { }
+    }
+
+    // .flavor.info: "Product Flavor!STRING:0" e, na linha seguinte, o código do produto
+    static string ReadProduct(string dir) {
+        try {
+            string[] lines = File.ReadAllLines(Path.Combine(dir, ".flavor.info"));
+            for (int i = 1; i < lines.Length; i++) if (lines[i].Trim().Length > 0) return lines[i].Trim();
+        } catch { }
+        return null;
+    }
+
+    static string Pretty(string folder) {   // "_classic_era_" → "Classic era"
+        string s = folder.Trim('_').Replace('_', ' ');
+        return s.Length == 0 ? folder : char.ToUpperInvariant(s[0]) + s.Substring(1);
+    }
+
+    // onde procurar: o que o instalador do Battle.net registrou e os caminhos comuns em todos os discos
+    static List<string> Roots() {
+        var roots = new List<string>();
+        foreach (string view in new[] { @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
+                                        @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall" }) {
+            try {
+                using (RegistryKey un = Registry.LocalMachine.OpenSubKey(view)) {
+                    if (un == null) continue;
+                    foreach (string name in un.GetSubKeyNames()) {
+                        using (RegistryKey k = un.OpenSubKey(name)) {
+                            string display = k == null ? null : k.GetValue("DisplayName") as string;
+                            if (display == null || !display.StartsWith("World of Warcraft", StringComparison.OrdinalIgnoreCase)) continue;
+                            AddRoot(roots, k.GetValue("InstallLocation") as string);
+                        }
+                    }
+                }
+            } catch { }
+        }
+        foreach (string key in new[] { @"SOFTWARE\WOW6432Node\Blizzard Entertainment\World of Warcraft",
+                                       @"SOFTWARE\Blizzard Entertainment\World of Warcraft" }) {
+            try {
+                using (RegistryKey k = Registry.LocalMachine.OpenSubKey(key))
+                    if (k != null) AddRoot(roots, k.GetValue("InstallPath") as string);
+            } catch { }
+        }
+        try {
+            foreach (DriveInfo d in DriveInfo.GetDrives()) {
+                if (d.DriveType != DriveType.Fixed || !d.IsReady) continue;
+                foreach (string c in Common) AddRoot(roots, Path.Combine(d.RootDirectory.FullName, c));
+            }
+        } catch { }
+        return roots;
+    }
+
+    static void AddRoot(List<string> roots, string p) {
+        string root = RootOf(p);
+        if (root.Length == 0 || !Directory.Exists(root)) return;
+        foreach (string r in roots) if (string.Equals(r, root, StringComparison.OrdinalIgnoreCase)) return;
+        roots.Add(root);
+    }
 }
 }

@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Windows.Forms;
 using Microsoft.Win32;
@@ -29,6 +30,7 @@ public static class Program {
         }
         string dir = opt.ContainsKey("config-dir") ? opt["config-dir"] : Config.DefaultDir;
         Directory.CreateDirectory(dir);
+        if (opt.ContainsKey("list-games")) return ListGames(opt, dir);
         if (opt.ContainsKey("once")) return RunOnce(opt, dir);
 
         bool first;
@@ -56,6 +58,16 @@ public static class Program {
             case "server": case "token": case "wow": case "screenshots": case "config-dir": return true;
         }
         return false;
+    }
+
+    // linha de comando (suporte/testes): variações do jogo encontradas, uma por linha (nome, produto, pasta)
+    static int ListGames(Dictionary<string, string> opt, string dir) {
+        string wow;
+        if (!opt.TryGetValue("wow", out wow)) wow = Config.Load(dir).WowPath;
+        List<Flavor> found = WowInstall.Find(wow);
+        foreach (Flavor f in found) Console.WriteLine(f.Name + "\t" + f.Product + "\t" + f.Dir);
+        if (found.Count == 0) Console.WriteLine("nenhuma instalação do World of Warcraft encontrada");
+        return found.Count > 0 ? 0 : 1;
     }
 
     // linha de comando (testes): processa a pasta uma vez e sai; saída no console de quem chamou
@@ -218,7 +230,11 @@ public class TrayApp : ApplicationContext {
         main = new MainForm();
         main.OpenDashboard += () => Integration.Open(cfg.Server + "/");
         main.OpenSettings += () => { Config c = Config.Load(dir); if (AskSettings(c, main)) StartEngine(); };
-        main.OpenShots += () => { if (engine != null) Integration.Open(Directory.Exists(engine.ShotDir) ? engine.ShotDir : cfg.WowPath); };
+        main.OpenShots += () => {
+            if (engine == null) return;
+            string d = engine.ShotDirs.FirstOrDefault(Directory.Exists) ?? (engine.Flavors.Count > 0 ? engine.Flavors[0].Dir : null);
+            if (d != null) Integration.Open(d);
+        };
         main.FormClosing += (s, e) => {
             if (exiting || e.CloseReason != CloseReason.UserClosing) return;
             e.Cancel = true;
@@ -372,7 +388,7 @@ public class MainForm : Form {
         AddStat(stats, 0, "Enviados (sessão)", sentValue);
         AddStat(stats, 1, "Último envio", lastValue);
         AddStat(stats, 2, "Pendentes", pendingValue);
-        AddStat(stats, 3, "Pasta dos prints", shotsValue);
+        AddStat(stats, 3, "Jogos", shotsValue);
         shotsValue.AutoEllipsis = true;
 
         var logLabel = new Label { Text = "Atividade", Dock = DockStyle.Top, Height = 22, ForeColor = Theme.Muted, Padding = new Padding(14, 4, 0, 0) };
@@ -424,7 +440,6 @@ public class MainForm : Form {
     public void Bind(Engine e, Config cfg) {
         log.Items.Clear();
         site.Text = cfg.Server;
-        shotsValue.Text = e.ShotDir;
     }
 
     public void UpdateStatus(Engine e) {
@@ -435,6 +450,7 @@ public class MainForm : Form {
         lastValue.Text = e.LastSent == DateTime.MinValue ? "—" : e.LastSent.ToString("HH:mm:ss");
         pendingValue.Text = e.Pending.ToString();
         pendingValue.ForeColor = e.Pending > 0 ? Theme.Yellow : ForeColor;
+        shotsValue.Text = e.Flavors.Count > 0 ? WowInstall.Describe(e.Flavors) : "não encontrado";
     }
 
     public void AddLog(DateTime t, string msg, LogLevel level) {
@@ -450,7 +466,7 @@ public class SettingsForm : Form {
     public Config Result;
     readonly TextBox server = new TextBox(), token = new TextBox(), wow = new TextBox();
     readonly CheckBox showToken = new CheckBox(), autoStart = new CheckBox(), chat = new CheckBox(), chatLog = new CheckBox(), keep = new CheckBox();
-    readonly Label status = new Label();
+    readonly Label status = new Label(), found = new Label();
     readonly Button test, save;
     readonly Config start;
 
@@ -466,7 +482,7 @@ public class SettingsForm : Form {
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.CenterParent;
         BackColor = Color.White;
-        ClientSize = new Size(560, 428);
+        ClientSize = new Size(560, 452);
 
         var intro = new Label {
             Text = "Conecte este PC ao seu dashboard. O token é gerado na página Configurar do site.",
@@ -485,9 +501,10 @@ public class SettingsForm : Form {
         token.Text = c.Token;
         token.UseSystemPasswordChar = true;
         token.Font = new Font("Consolas", 9.5f);
-        wow.Text = string.IsNullOrEmpty(c.WowPath) ? Config.DetectWowPath() : c.WowPath;
+        wow.Text = c.WowPath;
         SetCue(server, "https://wowpilot.exemplo.com");
         SetCue(token, "cole aqui o token");
+        SetCue(wow, "automático");
 
         showToken.Text = "Mostrar";
         showToken.AutoSize = true;
@@ -509,14 +526,19 @@ public class SettingsForm : Form {
         chat.CheckedChanged += (s, e) => chatLog.Enabled = chat.Checked;
         keep.Text = "Manter os prints do código depois de enviar";
         keep.Checked = c.KeepScreenshots;
-        int y = 176;
+        found.SetBounds(150, 172, 390, 20);
+        found.ForeColor = Theme.Muted;
+        found.AutoEllipsis = true;
+        wow.TextChanged += (s, e) => ShowFound();
+        ShowFound();
+        int y = 200;
         foreach (CheckBox cb in new[] { autoStart, chat, chatLog, keep }) {
             cb.AutoSize = true;
             cb.Location = new Point(cb == chatLog ? 170 : 150, y);
             y += 28;
         }
 
-        status.SetBounds(150, 292, 390, 44);
+        status.SetBounds(150, 316, 390, 44);
         status.ForeColor = Theme.Muted;
 
         var bar = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 56, FlowDirection = FlowDirection.RightToLeft,
@@ -531,7 +553,7 @@ public class SettingsForm : Form {
         AcceptButton = save;
         CancelButton = cancel;
 
-        Controls.AddRange(new Control[] { intro, grid, autoStart, chat, chatLog, keep, status, bar });
+        Controls.AddRange(new Control[] { intro, grid, found, autoStart, chat, chatLog, keep, status, bar });
         Shown += (s, e) => (server.Text.Length == 0 ? server : token.Text.Length == 0 ? token : (Control)save).Focus();
     }
 
@@ -552,8 +574,15 @@ public class SettingsForm : Form {
         box.HandleCreated += (s, e) => SendMessage(box.Handle, 0x1501 /* EM_SETCUEBANNER */, (IntPtr)1, cue);
     }
 
+    // o que a pasta escolhida (ou a busca automática) encontra
+    void ShowFound() {
+        List<Flavor> f = WowInstall.Find(wow.Text);
+        found.Text = f.Count > 0 ? "Encontrado: " + WowInstall.Describe(f) : "Nenhuma instalação do WoW encontrada";
+        found.ForeColor = f.Count > 0 ? Theme.Muted : Theme.Yellow;
+    }
+
     void Browse() {
-        using (var d = new FolderBrowserDialog { Description = "Escolha a pasta do World of Warcraft (ou a _retail_ dentro dela)", ShowNewFolderButton = false }) {
+        using (var d = new FolderBrowserDialog { Description = "Escolha a pasta World of Warcraft (a que tem _retail_, _forever_…)", ShowNewFolderButton = false }) {
             if (Directory.Exists(wow.Text)) d.SelectedPath = wow.Text;
             if (d.ShowDialog(this) == DialogResult.OK) wow.Text = Config.NormalizeWowPath(d.SelectedPath);
         }
@@ -587,8 +616,8 @@ public class SettingsForm : Form {
 
     void Finish(Config c, string user, HttpResult r, bool saving) {
         test.Enabled = save.Enabled = true;
-        bool shotsOk = Directory.Exists(c.WowPath);
-        string warnShots = shotsOk ? "" : "\nA pasta do WoW não foi encontrada — confira o caminho.";
+        bool shotsOk = WowInstall.Find(c.WowPath).Count > 0;
+        string warnShots = shotsOk ? "" : "\nNão achei o World of Warcraft — escolha a pasta.";
         if (user != null) {
             SetStatus("Conectado como " + user + "." + warnShots, shotsOk ? Theme.Green : Theme.Yellow);
             if (saving) Accept(c);
