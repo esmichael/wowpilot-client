@@ -1,0 +1,21 @@
+name: Sugestão
+description: Ideia de melhoria ou coisa nova
+labels: [sugestão]
+body:
+  - type: textarea
+    id: ideia
+    attributes:
+      label: O que você gostaria?
+      description: Descreva a ideia e em que situação do jogo ela ajudaria.
+    validations:
+      required: true
+  - type: dropdown
+    id: jogo
+    attributes:
+      label: Para qual jogo?
+      options: [Retail, "WoW: Forever", Os dois]
+  - type: textarea
+    id: extra
+    attributes:
+      label: Algo mais?
+      description: Exemplos, prints, addons ou sites que fazem algo parecido.

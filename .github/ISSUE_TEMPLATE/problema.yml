@@ -1,0 +1,50 @@
+name: Algo não funciona
+description: O addon ou o WowPilot Sync não está funcionando como deveria
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado por relatar! **Nunca cole o seu token** aqui, nem em prints.
+  - type: textarea
+    id: oque
+    attributes:
+      label: O que aconteceu?
+      description: O que você fez, o que esperava e o que aconteceu de verdade.
+    validations:
+      required: true
+  - type: dropdown
+    id: jogo
+    attributes:
+      label: Jogo
+      options: [Retail, "WoW: Forever"]
+    validations:
+      required: true
+  - type: dropdown
+    id: cliente
+    attributes:
+      label: Cliente no Windows
+      options: [WowPilotSync.exe, WowPilotSync.ps1]
+    validations:
+      required: true
+  - type: input
+    id: versao
+    attributes:
+      label: Versão
+      description: Aparece na primeira linha da lista Atividade do WowPilot Sync (ex. "WowPilot Sync 1.1.0").
+      placeholder: "1.1.0"
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Registro do programa (opcional)
+      description: |
+        As últimas linhas de `%LOCALAPPDATA%\WowPilot\WowPilotSync.log` e/ou a saída de `/wpilot` no jogo.
+        Confira se não há token no texto antes de colar.
+      render: text
+  - type: textarea
+    id: extra
+    attributes:
+      label: Algo mais?
+      description: Prints, outros addons que você usa, filtros de imagem/HDR ligados etc.
