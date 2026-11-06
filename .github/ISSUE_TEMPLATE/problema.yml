@@ -31,8 +31,8 @@ body:
     id: versao
     attributes:
       label: Versão
-      description: Aparece na primeira linha da lista Atividade do WowPilot Sync (ex. "WowPilot Sync 1.3.2").
-      placeholder: "1.3.2"
+      description: Aparece na primeira linha da lista Atividade do WowPilot Sync (ex. "WowPilot Sync 1.4.0").
+      placeholder: "1.4.0"
     validations:
       required: true
   - type: textarea
