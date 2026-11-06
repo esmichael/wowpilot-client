@@ -270,6 +270,42 @@ def check_update(check, exe: Path):
         shutil.rmtree(base, ignore_errors=True)
 
 
+def check_addon_install(check, exe: Path):
+    """Addon embutido no .exe: instala no Retail/Forever, atualiza versão velha, não mexe em clone do git nem no PTR."""
+    temp = subprocess.run(["cmd.exe", "/c", "echo %TEMP%"], capture_output=True, text=True).stdout.strip()
+    root = Path(subprocess.run(["wslpath", "-u", temp], capture_output=True, text=True).stdout.strip()) / "wowpilot_addon" / "World of Warcraft"
+    shutil.rmtree(root.parent, ignore_errors=True)
+    for folder, product in (("_retail_", "wow"), ("_forever_", "wowf"), ("_xptr_", "wowxptr")):
+        d = root / folder
+        (d / "WTF").mkdir(parents=True)
+        (d / ".flavor.info").write_bytes(f"Product Flavor!STRING:0\r\n{product}\r\n".encode())
+    old = root / "_forever_" / "Interface" / "AddOns" / "WowPilot"
+    old.mkdir(parents=True)
+    (old / "WowPilot.toc").write_text("## Version: 0.0.1\n")
+    mine = (ROOT / "WowPilot.toc").read_bytes()
+    addon = lambda f: root / f / "Interface" / "AddOns" / "WowPilot"
+
+    def run():
+        r = subprocess.run([str(exe), "--install-addon", "--wow", win_path(root)], capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", timeout=60)
+        return r.stdout + r.stderr
+    try:
+        out = run()
+        check("WowPilotSync.exe: instala o addon embutido no Retail, atualiza o do Forever, não mexe no PTR",
+              (addon("_retail_") / "WowPilot.toc").read_bytes() == mine
+              and (addon("_retail_") / "WowPilotLive.lua").read_bytes() == (ROOT / "WowPilotLive.lua").read_bytes()
+              and (old / "WowPilot.toc").read_bytes() == mine and not addon("_xptr_").exists(), out)
+        out2 = run()
+        (old / "WowPilot.toc").write_text("## Version: 0.0.1\n")
+        (old / ".git").mkdir()
+        out3 = run()
+        check("WowPilotSync.exe: na mesma versão não regrava; clone do git fica como está",
+              out2.strip() == "" and out3.strip() == "" and (old / "WowPilot.toc").read_text() == "## Version: 0.0.1\n",
+              out2 + out3)
+    finally:
+        shutil.rmtree(root.parent, ignore_errors=True)
+
+
 def main():
     failed = 0
 
@@ -352,6 +388,7 @@ def main():
             check_games(check, exe)
             check_shortcuts(check, exe)
             check_update(check, exe)
+            check_addon_install(check, exe)
     else:
         print("  (sem powershell.exe: clientes não testados)")
     shutil.rmtree(tmp, ignore_errors=True)

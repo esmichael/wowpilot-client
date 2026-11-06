@@ -4,7 +4,7 @@ Leva os dados do seu personagem do **World of Warcraft** para o seu painel no si
 moedas, Great Vault, Mítica+, grupos, chat e, no **WoW: Forever**, o leveling (XP/h, quests, guia do RestedXP e o
 caminho até o próximo objetivo no mapa).
 
-São duas peças, e você precisa das duas:
+São duas peças, mas você só instala uma: o WowPilot Sync instala o addon para você.
 
 - **Addon WowPilot**, dentro do jogo: junta os dados e mostra um código colorido por um instante no canto da tela.
 - **WowPilot Sync**, no Windows: lê esse código nos prints do jogo e envia ao site.
@@ -18,19 +18,10 @@ Funciona no **Retail** e no **WoW: Forever**.
 Entre no site do WowPilot, crie a conta e abra a página **Configurar**. Lá você gera o **token**, a chave que liga
 este PC à sua conta.
 
-### 2. Instale o addon
-
-1. Baixe o **`WowPilot.zip`** da [última versão](../../releases/latest).
-2. Extraia a pasta `WowPilot` dentro de:
-   - Retail: `World of Warcraft\_retail_\Interface\AddOns\`
-   - WoW: Forever: `World of Warcraft\_forever_\Interface\AddOns\`
-3. Abra o jogo (ou dê `/reload`). Na lista de addons deve aparecer **WowPilot**.
-
-### 3. Instale o WowPilot Sync
+### 2. Instale o WowPilot Sync
 
 1. Baixe o **`WowPilotSync.exe`** da [última versão](../../releases/latest) e salve numa pasta sua (por exemplo
-   `Documentos\WowPilot`). Não precisa instalar nada: ao abrir, ele cria o atalho **WowPilot Sync** no Menu
-   Iniciar (se você mudar o `.exe` de pasta, o atalho se corrige na próxima vez que abrir).
+   `Documentos\WowPilot`). Não precisa instalar nada.
 2. Abra o programa. Se o Windows mostrar *"O Windows protegeu o computador"*, clique em **Mais informações** →
    **Executar assim mesmo** (o programa ainda não tem assinatura digital paga).
 3. Na janela de configuração, preencha:
@@ -40,12 +31,24 @@ este PC à sua conta.
      encontrou, por exemplo *Encontrado: Retail · WoW: Forever*. Só escolha a pasta se ele não achar.
 4. Clique em **Testar conexão** e depois em **Salvar**.
 
+O programa faz o resto sozinho:
+
+- **instala o addon WowPilot** no Retail e no WoW: Forever (e o mantém atualizado). Se o jogo estiver aberto,
+  feche e abra de novo para o addon aparecer;
+- cria o atalho **WowPilot Sync** no Menu Iniciar (se você mudar o `.exe` de pasta, o atalho se corrige).
+
 Dica: na página Configurar do site, o botão **Configurar o WowPilot Sync** preenche endereço e token sozinho
 (com o programa já aberto uma vez).
 
 Pronto. Deixe o WowPilot Sync aberto enquanto joga; ele fica como um ícone perto do relógio. Ele vigia ao mesmo
 tempo todas as variações instaladas (Retail, WoW: Forever, Classic, PTR…). A busca acontece quando o programa
 abre; instalou uma variação nova? Reabra o programa ou use **Buscar de novo** em **Configurações…**.
+
+### Instalar o addon à mão (opcional)
+
+Prefere não deixar o programa mexer na pasta do jogo? Desligue **Instalar e atualizar o addon** nas configurações,
+baixe o **`WowPilot.zip`** da [última versão](../../releases/latest) e extraia a pasta `WowPilot` em
+`World of Warcraft\_retail_\Interface\AddOns\` (ou `_forever_\Interface\AddOns\`).
 
 ## Uso no dia a dia
 
@@ -73,6 +76,8 @@ ele está instalado e reabre sozinho. Depois, no jogo, dê `/reload`.
 ### Opções do WowPilot Sync
 
 - **Iniciar com o Windows**: abre sozinho, só com o ícone perto do relógio.
+- **Instalar e atualizar o addon** (ligado): instala o addon no Retail e no Forever e o atualiza junto com o
+  programa. Desligue se preferir cuidar do addon à mão.
 - **Atalho no Menu Iniciar** (ligado) e **Atalho na Área de Trabalho** (desligado): desligar remove o atalho.
 - **Enviar as mensagens do chat**: **desligada por padrão**. Desligada, o WowPilot Sync tira o chat dos dados antes
   de enviar: nenhuma mensagem sai do seu PC.

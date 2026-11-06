@@ -93,17 +93,9 @@ public static class Updater {
         if (!files.ContainsKey("WowPilot.toc")) throw new IOException("o pacote do addon não tem o WowPilot.toc");
         var done = new List<string>();
         foreach (Flavor f in flavors) {
-            string dest = Path.Combine(f.Dir, "Interface", "AddOns", "WowPilot");
-            if (!File.Exists(Path.Combine(dest, "WowPilot.toc"))) continue;
-            // clone do git (quem desenvolve): atualiza com git pull, não aqui
-            if (Directory.Exists(Path.Combine(dest, ".git")) || File.Exists(Path.Combine(dest, ".git"))) continue;
-            foreach (var kv in files) {
-                string path = Path.Combine(dest, kv.Key.Replace('/', Path.DirectorySeparatorChar));
-                Directory.CreateDirectory(Path.GetDirectoryName(path));
-                File.WriteAllBytes(path + ".new", kv.Value);
-                if (File.Exists(path)) File.Delete(path);
-                File.Move(path + ".new", path);
-            }
+            string dest = AddonInstaller.DirOf(f);
+            if (!File.Exists(Path.Combine(dest, "WowPilot.toc")) || AddonInstaller.IsGitClone(dest)) continue;
+            AddonInstaller.Write(dest, files);
             done.Add(f.Name);
         }
         return done;
@@ -136,6 +128,81 @@ public static class Updater {
         req.Timeout = req.ReadWriteTimeout = 60000;
         req.AllowAutoRedirect = true;
         return (HttpWebResponse)req.GetResponse();
+    }
+}
+
+// O addon vem embutido no .exe (mesma versão do programa). Ao abrir, o programa instala o addon no Retail e no
+// WoW: Forever onde ele ainda não existe e atualiza onde está numa versão mais antiga. Pastas que são clone do git
+// (quem desenvolve) e versões mais novas instaladas à mão ficam como estão.
+public static class AddonInstaller {
+    static readonly string[] Files = { "WowPilot.toc", "WowPilot.lua", "WowPilotLive.lua" };
+    static readonly string[] Products = { "wow", "wowf" };   // os jogos que o addon suporta
+
+    public static string DirOf(Flavor f) { return Path.Combine(f.Dir, "Interface", "AddOns", "WowPilot"); }
+
+    public static bool IsGitClone(string dir) {
+        return Directory.Exists(Path.Combine(dir, ".git")) || File.Exists(Path.Combine(dir, ".git"));
+    }
+
+    // arquivos do addon embutidos no .exe (client\build.cmd: /resource:...,addon.<arquivo>)
+    public static Dictionary<string, byte[]> Embedded() {
+        var files = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+        var asm = typeof(AddonInstaller).Assembly;
+        foreach (string name in Files) {
+            using (Stream s = asm.GetManifestResourceStream("addon." + name)) {
+                if (s == null) return null;
+                using (var m = new MemoryStream()) { s.CopyTo(m); files[name] = m.ToArray(); }
+            }
+        }
+        return files;
+    }
+
+    public static Version TocVersion(byte[] toc) {
+        foreach (string line in System.Text.Encoding.UTF8.GetString(toc).Split('\n')) {
+            string l = line.Trim();
+            if (!l.StartsWith("## Version:")) continue;
+            try { return new Version(l.Substring("## Version:".Length).Trim()); } catch { return null; }
+        }
+        return null;
+    }
+
+    // instala/atualiza; devolve uma linha por variação que mudou ou ficou de fora (para o log)
+    public static List<string> Sync(List<Flavor> flavors) {
+        var log = new List<string>();
+        Dictionary<string, byte[]> files = Embedded();
+        if (files == null) return log;
+        Version mine = TocVersion(files["WowPilot.toc"]);
+        foreach (Flavor f in flavors) {
+            if (Array.IndexOf(Products, (f.Product ?? "").ToLowerInvariant()) < 0) continue;
+            string dest = DirOf(f), toc = Path.Combine(dest, "WowPilot.toc");
+            try {
+                if (!File.Exists(toc)) {
+                    if (!Directory.Exists(Path.Combine(f.Dir, "Interface", "AddOns")) && !Directory.Exists(Path.Combine(f.Dir, "WTF"))) continue;
+                    Write(dest, files);
+                    log.Add("addon " + mine + " instalado no " + f.Name + " (se o jogo estiver aberto, feche e abra de novo)");
+                    continue;
+                }
+                if (IsGitClone(dest)) continue;
+                Version have = TocVersion(File.ReadAllBytes(toc));
+                if (have != null && mine != null && have >= mine) continue;
+                Write(dest, files);
+                log.Add("addon do " + f.Name + " atualizado para " + mine + " (no jogo: /reload)");
+            } catch (Exception e) {
+                log.Add("não consegui instalar o addon no " + f.Name + ": " + e.Message);
+            }
+        }
+        return log;
+    }
+
+    // grava arquivo a arquivo (.new e troca), para o jogo nunca ler um arquivo pela metade
+    public static void Write(string dest, Dictionary<string, byte[]> files) {
+        foreach (var kv in files) {
+            string path = Path.Combine(dest, kv.Key.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(path));
+            File.WriteAllBytes(path + ".new", kv.Value);
+            if (File.Exists(path)) File.Delete(path);
+            File.Move(path + ".new", path);
+        }
     }
 }
 }

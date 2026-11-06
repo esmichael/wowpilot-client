@@ -16,7 +16,8 @@ public class Config {
     public string Server = "", Token = "", WowPath = "";
     public bool KeepScreenshots, NoChatLog;
     public bool SendChat;
-    public bool NoStartMenu, DesktopShortcut;   // atalhos: Menu Iniciar ligado, Área de Trabalho desligado (padrão)   // mensagens do chat: desligado por padrão (o addon coleta, o cliente tira antes de enviar)
+    public bool NoStartMenu, DesktopShortcut;
+    public bool NoAddonInstall;   // addon embutido: instala/atualiza sozinho no Retail e no Forever (padrão)   // atalhos: Menu Iniciar ligado, Área de Trabalho desligado (padrão)   // mensagens do chat: desligado por padrão (o addon coleta, o cliente tira antes de enviar)
 
     public static string DefaultDir {
         get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WowPilot"); }
@@ -40,6 +41,7 @@ public class Config {
             if (d.TryGetValue("SendChat", out v) && v is bool) c.SendChat = (bool)v;
             if (d.TryGetValue("NoStartMenu", out v) && v is bool) c.NoStartMenu = (bool)v;
             if (d.TryGetValue("DesktopShortcut", out v) && v is bool) c.DesktopShortcut = (bool)v;
+            if (d.TryGetValue("NoAddonInstall", out v) && v is bool) c.NoAddonInstall = (bool)v;
         } catch { }
         return c;
     }
@@ -49,7 +51,7 @@ public class Config {
         var d = new Dictionary<string, object> {
             { "Server", Server }, { "Token", Token }, { "WowPath", WowPath },
             { "KeepScreenshots", KeepScreenshots }, { "NoChatLog", NoChatLog }, { "SendChat", SendChat },
-            { "NoStartMenu", NoStartMenu }, { "DesktopShortcut", DesktopShortcut } };
+            { "NoStartMenu", NoStartMenu }, { "DesktopShortcut", DesktopShortcut }, { "NoAddonInstall", NoAddonInstall } };
         File.WriteAllText(Path.Combine(dir, "config.json"), new JavaScriptSerializer().Serialize(d), new UTF8Encoding(false));
     }
 
@@ -253,6 +255,7 @@ public class Engine {
     }
 
     void Run() {
+        if (!Cfg.NoAddonInstall) foreach (string line in AddonInstaller.Sync(Flavors)) Log(line, LogLevel.Ok);
         if (!Connect()) return;
         Log("vigiando…", LogLevel.Info);
         while (!stop) {

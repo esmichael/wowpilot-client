@@ -39,6 +39,12 @@ public static class Program {
         Updater.Cleanup(Application.ExecutablePath);
         if (opt.ContainsKey("list-games")) return ListGames(opt, dir);
         if (opt.ContainsKey("update")) return UpdateCli(opt, dir);
+        if (opt.ContainsKey("install-addon")) {   // testes/suporte: instala/atualiza o addon embutido e sai
+            string w;
+            if (!opt.TryGetValue("wow", out w)) w = Config.Load(dir).WowPath;
+            foreach (string line in AddonInstaller.Sync(WowInstall.Find(w))) Console.WriteLine(line);
+            return 0;
+        }
         if (opt.ContainsKey("sync-shortcuts")) {   // testes: aplica os atalhos da configuração e sai
             string links;
             if (opt.TryGetValue("links-dir", out links)) Integration.LinksDir = links;
@@ -615,7 +621,7 @@ public class MainForm : Form {
 public class SettingsForm : Form {
     public Config Result;
     readonly TextBox server = new TextBox(), token = new TextBox(), wow = new TextBox();
-    readonly CheckBox showToken = new CheckBox(), autoStart = new CheckBox(), startMenu = new CheckBox(), desktop = new CheckBox(), chat = new CheckBox(), chatLog = new CheckBox(), keep = new CheckBox();
+    readonly CheckBox showToken = new CheckBox(), autoStart = new CheckBox(), addon = new CheckBox(), startMenu = new CheckBox(), desktop = new CheckBox(), chat = new CheckBox(), chatLog = new CheckBox(), keep = new CheckBox();
     readonly Label status = new Label(), found = new Label();
     readonly Button test, save;
     readonly Config start;
@@ -632,7 +638,7 @@ public class SettingsForm : Form {
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.CenterParent;
         BackColor = Color.White;
-        ClientSize = new Size(560, 508);
+        ClientSize = new Size(560, 536);
 
         var intro = new Label {
             Text = "Conecte este PC ao seu dashboard. O token é gerado na página Configurar do site.",
@@ -688,13 +694,15 @@ public class SettingsForm : Form {
         startMenu.Checked = !c.NoStartMenu;
         desktop.Text = "Atalho na Área de Trabalho";
         desktop.Checked = c.DesktopShortcut;
-        foreach (CheckBox cb in new[] { autoStart, startMenu, desktop, chat, chatLog, keep }) {
+        addon.Text = "Instalar e atualizar o addon no jogo sozinho (Retail e Forever)";
+        addon.Checked = !c.NoAddonInstall;
+        foreach (CheckBox cb in new[] { autoStart, addon, startMenu, desktop, chat, chatLog, keep }) {
             cb.AutoSize = true;
             cb.Location = new Point(cb == chatLog ? 170 : 150, y);
             y += 28;
         }
 
-        status.SetBounds(150, 372, 390, 44);
+        status.SetBounds(150, 400, 390, 44);
         status.ForeColor = Theme.Muted;
 
         var bar = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 56, FlowDirection = FlowDirection.RightToLeft,
@@ -709,7 +717,7 @@ public class SettingsForm : Form {
         AcceptButton = save;
         CancelButton = cancel;
 
-        Controls.AddRange(new Control[] { intro, grid, found, rescan, autoStart, startMenu, desktop, chat, chatLog, keep, status, bar });
+        Controls.AddRange(new Control[] { intro, grid, found, rescan, autoStart, addon, startMenu, desktop, chat, chatLog, keep, status, bar });
         Shown += (s, e) => (server.Text.Length == 0 ? server : token.Text.Length == 0 ? token : (Control)save).Focus();
     }
 
@@ -748,7 +756,7 @@ public class SettingsForm : Form {
         var c = new Config {
             Server = server.Text, Token = token.Text, WowPath = wow.Text,
             SendChat = chat.Checked, NoChatLog = !chatLog.Checked, KeepScreenshots = keep.Checked,
-            NoStartMenu = !startMenu.Checked, DesktopShortcut = desktop.Checked
+            NoStartMenu = !startMenu.Checked, DesktopShortcut = desktop.Checked, NoAddonInstall = !addon.Checked
         };
         c.Normalize();
         return c;

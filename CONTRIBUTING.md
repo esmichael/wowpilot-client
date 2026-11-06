@@ -74,6 +74,10 @@ git tag v1.3.3 && git push origin v1.3.3
 
 O workflow confere as versões, compila e publica o Release com `WowPilotSync.exe` e `WowPilot.zip`.
 
+O addon vai embutido no `.exe` (`client\build.cmd`: `/resource:...,addon.<arquivo>`): ao abrir, `AddonInstaller`
+instala no Retail/Forever onde ele não existe e atualiza onde a versão do `.toc` é mais antiga; clone do git e versão
+mais nova ficam como estão. Teste: `WowPilotSync.exe --install-addon --wow <pasta>`.
+
 O botão **Atualizar** do cliente (`Update.cs`) lê `releases/latest` pela API do GitHub e só aceita os arquivos se o
 SHA-256 bater com o `digest` que o GitHub publica para cada asset. Ele não mexe numa pasta do addon que seja clone do
 git. Para testar sem o GitHub: `WowPilotSync.exe --update --api <url do JSON> --wow <pasta>` (veja
