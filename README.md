@@ -36,7 +36,11 @@ O programa faz o resto sozinho:
 
 - **instala o addon WowPilot** no Retail e no WoW: Forever (e o mantém atualizado). Se o jogo estiver aberto,
   feche e abra de novo para o addon aparecer;
-- cria o atalho **WowPilot Sync** no Menu Iniciar (se você mudar o `.exe` de pasta, o atalho se corrige).
+- cria no Menu Iniciar o atalho **WowPilot Sync** (abre o programa) e o atalho **WowPilot** (abre o site no seu
+  navegador). Se você mudar o `.exe` de pasta, os atalhos se corrigem sozinhos.
+
+**Site na barra de tarefas:** o Windows não deixa um programa se fixar sozinho, mas é um clique: no Menu Iniciar,
+clique com o botão direito em **WowPilot** → **Fixar na barra de tarefas** (no Windows 11, em **Mais**).
 
 Dica: na página Configurar do site, o botão **Configurar o WowPilot Sync** preenche endereço e token sozinho
 (com o programa já aberto uma vez).
@@ -65,7 +69,10 @@ Comandos no jogo:
 | `/wpilot agora` | envia na hora (também como macro: `/run WowPilot_Send()`) |
 | `/wpilot intervalo N` | espera no mínimo N segundos entre envios automáticos (padrão 30, mínimo 5; `0` = só manual) |
 
-No ícone do WowPilot Sync (perto do relógio): **Abrir dashboard**, **Configurações…** e **Sair**.
+Para ver o seu painel: botão **Abrir o site** na janela do programa, no menu do ícone perto do relógio ou no atalho
+**WowPilot**. Ele abre no seu navegador padrão.
+
+No ícone do WowPilot Sync (perto do relógio): **Abrir o site**, **Configurações…** e **Sair**.
 
 ### Atualizar
 
@@ -79,7 +86,8 @@ ele está instalado e reabre sozinho. Depois, no jogo, dê `/reload`.
 - **Iniciar com o Windows**: abre sozinho, só com o ícone perto do relógio.
 - **Instalar e atualizar o addon** (ligado): instala o addon no Retail e no Forever e o atualiza junto com o
   programa. Desligue se preferir cuidar do addon à mão.
-- **Atalho no Menu Iniciar** (ligado) e **Atalho na Área de Trabalho** (desligado): desligar remove o atalho.
+- **Atalhos no Menu Iniciar** (ligado) e **Atalhos na Área de Trabalho** (desligado): os atalhos **WowPilot Sync**
+  e **WowPilot** (site). Desligar remove os atalhos.
 - **Enviar as mensagens do chat**: **desligada por padrão**. Desligada, o WowPilot Sync tira o chat dos dados antes
   de enviar: nenhuma mensagem sai do seu PC.
   - **Incluir o chat log do jogo** (só com a opção acima ligada): no Retail, o jogo esconde dos addons o chat durante

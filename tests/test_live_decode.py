@@ -169,22 +169,23 @@ def check_shortcuts(check, exe: Path):
         subprocess.run([str(exe), "--sync-shortcuts", "--config-dir", win_path(base / "cfg"), "--links-dir", win_path(base)],
                        capture_output=True, timeout=60)
 
-    def target(kind: str):
-        link = base / kind / "WowPilot Sync.lnk"
-        if not link.exists():
+    def link(kind: str, name: str):
+        f = base / kind / name
+        if not f.exists():
             return None
-        ps = f"(New-Object -ComObject WScript.Shell).CreateShortcut('{win_path(link)}').TargetPath"
-        return subprocess.run(["powershell.exe", "-NoProfile", "-Command", ps], capture_output=True, text=True).stdout.strip()
+        ps = f"$l = (New-Object -ComObject WScript.Shell).CreateShortcut('{win_path(f)}'); $l.TargetPath + '|' + $l.Arguments"
+        return subprocess.run(["powershell.exe", "-NoProfile", "-Command", ps], capture_output=True, text=True).stdout.strip().lower()
 
+    me = win_path(exe).lower()
     try:
         run({})
-        check("WowPilotSync.exe: atalho no Menu Iniciar por padrão, apontando para o .exe; Área de Trabalho não",
-              (target("menu") or "").lower() == win_path(exe).lower() and target("desktop") is None,
-              f"menu={target('menu')} desktop={target('desktop')}")
+        got = [link(k, n) for k in ("menu", "desktop") for n in ("WowPilot Sync.lnk", "WowPilot.lnk")]
+        check("WowPilotSync.exe: atalhos no Menu Iniciar (programa e site) por padrão; Área de Trabalho não",
+              got == [me + "|", me + "|--open-site", None, None], str(got))
         run({"NoStartMenu": True, "DesktopShortcut": True})
-        check("WowPilotSync.exe: desligar remove o atalho; Área de Trabalho quando pedido",
-              target("menu") is None and (target("desktop") or "").lower() == win_path(exe).lower(),
-              f"menu={target('menu')} desktop={target('desktop')}")
+        got = [link(k, n) for k in ("menu", "desktop") for n in ("WowPilot Sync.lnk", "WowPilot.lnk")]
+        check("WowPilotSync.exe: desligar remove os atalhos; Área de Trabalho quando pedido",
+              got == [None, None, me + "|", me + "|--open-site"], str(got))
     finally:
         shutil.rmtree(base, ignore_errors=True)
 

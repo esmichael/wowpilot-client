@@ -37,6 +37,12 @@ public static class Program {
             try { Process.GetProcessById(int.Parse(pidText)).WaitForExit(15000); } catch { }
         }
         Updater.Cleanup(Application.ExecutablePath);
+        if (opt.ContainsKey("open-site")) {   // atalho "WowPilot": abre o site no navegador padrão e sai
+            Config c = Config.Load(dir);
+            c.Normalize();
+            Integration.Open((c.Server.Length > 0 ? c.Server : Config.DefaultServer) + "/");
+            return 0;
+        }
         if (opt.ContainsKey("list-games")) return ListGames(opt, dir);
         if (opt.ContainsKey("update")) return UpdateCli(opt, dir);
         if (opt.ContainsKey("install-addon")) {   // testes/suporte: instala/atualiza o addon embutido e sai
@@ -165,21 +171,24 @@ public static class Integration {
     // Atalhos "WowPilot Sync" no Menu Iniciar e na Área de Trabalho, apontando para este .exe (portátil: se ele
     // mudar de pasta, o atalho é corrigido na próxima vez que abrir). .lnk pelo WScript.Shell, que já vem no Windows.
     public static string LinksDir;   // só testes: pasta no lugar do Menu Iniciar/Área de Trabalho
-    const string LinkName = "WowPilot Sync.lnk";
+    // "WowPilot Sync" abre o programa; "WowPilot" abre o site no navegador (o .exe com --open-site): dá para fixar
+    // na barra de tarefas (o Windows não deixa um programa se fixar sozinho, só a pessoa)
+    const string AppLink = "WowPilot Sync.lnk", SiteLink = "WowPilot.lnk";
 
-    public static string StartMenuLink {
-        get { return LinksDir != null ? Path.Combine(LinksDir, "menu", LinkName) : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), LinkName); }
-    }
-    public static string DesktopLink {
-        get { return LinksDir != null ? Path.Combine(LinksDir, "desktop", LinkName) : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), LinkName); }
+    static string Folder(bool desktop) {
+        if (LinksDir != null) return Path.Combine(LinksDir, desktop ? "desktop" : "menu");
+        return Environment.GetFolderPath(desktop ? Environment.SpecialFolder.DesktopDirectory : Environment.SpecialFolder.Programs);
     }
 
     public static void SyncShortcuts(Config c) {
-        SetShortcut(StartMenuLink, !c.NoStartMenu);
-        SetShortcut(DesktopLink, c.DesktopShortcut);
+        foreach (bool desktop in new[] { false, true }) {
+            bool want = desktop ? c.DesktopShortcut : !c.NoStartMenu;
+            SetShortcut(Path.Combine(Folder(desktop), AppLink), want, "", "WowPilot Sync");
+            SetShortcut(Path.Combine(Folder(desktop), SiteLink), want, "--open-site", "Abre o site do WowPilot no navegador");
+        }
     }
 
-    static void SetShortcut(string link, bool want) {
+    static void SetShortcut(string link, bool want, string args, string description) {
         try {
             if (!want) { if (File.Exists(link)) File.Delete(link); return; }
             Directory.CreateDirectory(Path.GetDirectoryName(link));
@@ -190,10 +199,12 @@ public static class Integration {
                 sc = type.InvokeMember("CreateShortcut", BindingFlags.InvokeMethod, null, shell, new object[] { link });
                 Type st = sc.GetType();
                 string target = st.InvokeMember("TargetPath", BindingFlags.GetProperty, null, sc, null) as string;
-                if (File.Exists(link) && string.Equals(target, Exe, StringComparison.OrdinalIgnoreCase)) return;
+                string have = st.InvokeMember("Arguments", BindingFlags.GetProperty, null, sc, null) as string;
+                if (File.Exists(link) && string.Equals(target, Exe, StringComparison.OrdinalIgnoreCase) && (have ?? "") == args) return;
                 st.InvokeMember("TargetPath", BindingFlags.SetProperty, null, sc, new object[] { Exe });
+                st.InvokeMember("Arguments", BindingFlags.SetProperty, null, sc, new object[] { args });
                 st.InvokeMember("WorkingDirectory", BindingFlags.SetProperty, null, sc, new object[] { Path.GetDirectoryName(Exe) });
-                st.InvokeMember("Description", BindingFlags.SetProperty, null, sc, new object[] { "WowPilot Sync" });
+                st.InvokeMember("Description", BindingFlags.SetProperty, null, sc, new object[] { description });
                 st.InvokeMember("IconLocation", BindingFlags.SetProperty, null, sc, new object[] { Exe + ",0" });
                 st.InvokeMember("Save", BindingFlags.InvokeMethod, null, sc, null);
             } finally {
@@ -334,7 +345,7 @@ public class TrayApp : ApplicationContext {
         var openItem = new ToolStripMenuItem("Abrir WowPilot Sync", null, (s, e) => ShowMain());
         openItem.Font = new Font(openItem.Font, FontStyle.Bold);
         menu.Items.Add(openItem);
-        menu.Items.Add("Abrir dashboard", null, (s, e) => Integration.Open(cfg.Server + "/"));
+        menu.Items.Add("Abrir o site", null, (s, e) => Integration.Open(cfg.Server + "/"));
         menu.Items.Add("Configurações…", null, (s, e) => { ShowMain(); main.ClickSettings(); });
         autoItem = new ToolStripMenuItem("Iniciar com o Windows", null, (s, e) => Integration.AutoStart = !Integration.AutoStart);
         menu.Items.Add(autoItem);
@@ -550,7 +561,7 @@ public class MainForm : Form {
         var buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 52, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(12, 10, 12, 10), BackColor = Color.FromArgb(246, 247, 249) };
         var hide = MakeButton("Esconder", (s, e) => Close());
         settingsBtn = MakeButton("Configurações…", (s, e) => { if (OpenSettings != null) OpenSettings(); });
-        var dash = MakeButton("Abrir dashboard", (s, e) => { if (OpenDashboard != null) OpenDashboard(); });
+        var dash = MakeButton("Abrir o site", (s, e) => { if (OpenDashboard != null) OpenDashboard(); });
         var shots = MakeButton("Pasta dos prints", (s, e) => { if (OpenShots != null) OpenShots(); });
         updateBtn = MakeButton("Atualizar", (s, e) => { if (CheckForUpdate != null) CheckForUpdate(); });
         buttons.Controls.AddRange(new Control[] { hide, settingsBtn, dash, shots, updateBtn });
@@ -690,9 +701,9 @@ public class SettingsForm : Form {
         wow.Leave += (s, e) => ShowFound();   // ao sair do campo, não a cada tecla
         ShowFound();
         int y = 200;
-        startMenu.Text = "Atalho no Menu Iniciar";
+        startMenu.Text = "Atalhos no Menu Iniciar (programa e site)";
         startMenu.Checked = !c.NoStartMenu;
-        desktop.Text = "Atalho na Área de Trabalho";
+        desktop.Text = "Atalhos na Área de Trabalho";
         desktop.Checked = c.DesktopShortcut;
         addon.Text = "Instalar e atualizar o addon no jogo sozinho (Retail e Forever)";
         addon.Checked = !c.NoAddonInstall;
