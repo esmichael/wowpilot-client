@@ -29,7 +29,8 @@ este PC à sua conta.
 ### 3. Instale o WowPilot Sync
 
 1. Baixe o **`WowPilotSync.exe`** da [última versão](../../releases/latest) e salve numa pasta sua (por exemplo
-   `Documentos\WowPilot`). Não precisa instalar nada.
+   `Documentos\WowPilot`). Não precisa instalar nada: ao abrir, ele cria o atalho **WowPilot Sync** no Menu
+   Iniciar (se você mudar o `.exe` de pasta, o atalho se corrige na próxima vez que abrir).
 2. Abra o programa. Se o Windows mostrar *"O Windows protegeu o computador"*, clique em **Mais informações** →
    **Executar assim mesmo** (o programa ainda não tem assinatura digital paga).
 3. Na janela de configuração, preencha:
@@ -65,6 +66,7 @@ No ícone do WowPilot Sync (perto do relógio): **Abrir dashboard**, **Configura
 ### Opções do WowPilot Sync
 
 - **Iniciar com o Windows**: abre sozinho, só com o ícone perto do relógio.
+- **Atalho no Menu Iniciar** (ligado) e **Atalho na Área de Trabalho** (desligado): desligar remove o atalho.
 - **Enviar as mensagens do chat**: **desligada por padrão**. Desligada, o WowPilot Sync tira o chat dos dados antes
   de enviar: nenhuma mensagem sai do seu PC.
   - **Incluir o chat log do jogo** (só com a opção acima ligada): no Retail, o jogo esconde dos addons o chat durante

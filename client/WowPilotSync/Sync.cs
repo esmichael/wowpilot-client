@@ -15,7 +15,8 @@ namespace WowPilot {
 public class Config {
     public string Server = "", Token = "", WowPath = "";
     public bool KeepScreenshots, NoChatLog;
-    public bool SendChat;   // mensagens do chat: desligado por padrão (o addon coleta, o cliente tira antes de enviar)
+    public bool SendChat;
+    public bool NoStartMenu, DesktopShortcut;   // atalhos: Menu Iniciar ligado, Área de Trabalho desligado (padrão)   // mensagens do chat: desligado por padrão (o addon coleta, o cliente tira antes de enviar)
 
     public static string DefaultDir {
         get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WowPilot"); }
@@ -37,6 +38,8 @@ public class Config {
             if (d.TryGetValue("KeepScreenshots", out v) && v is bool) c.KeepScreenshots = (bool)v;
             if (d.TryGetValue("NoChatLog", out v) && v is bool) c.NoChatLog = (bool)v;
             if (d.TryGetValue("SendChat", out v) && v is bool) c.SendChat = (bool)v;
+            if (d.TryGetValue("NoStartMenu", out v) && v is bool) c.NoStartMenu = (bool)v;
+            if (d.TryGetValue("DesktopShortcut", out v) && v is bool) c.DesktopShortcut = (bool)v;
         } catch { }
         return c;
     }
@@ -45,7 +48,8 @@ public class Config {
         Directory.CreateDirectory(dir);
         var d = new Dictionary<string, object> {
             { "Server", Server }, { "Token", Token }, { "WowPath", WowPath },
-            { "KeepScreenshots", KeepScreenshots }, { "NoChatLog", NoChatLog }, { "SendChat", SendChat } };
+            { "KeepScreenshots", KeepScreenshots }, { "NoChatLog", NoChatLog }, { "SendChat", SendChat },
+            { "NoStartMenu", NoStartMenu }, { "DesktopShortcut", DesktopShortcut } };
         File.WriteAllText(Path.Combine(dir, "config.json"), new JavaScriptSerializer().Serialize(d), new UTF8Encoding(false));
     }
 
@@ -81,7 +85,7 @@ public class HttpResult {
 }
 
 public static class Http {
-    public const string Version = "1.3.1";
+    public const string Version = "1.3.2";
 
     static Http() {
         try { ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12; } catch { }

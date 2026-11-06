@@ -6,6 +6,8 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
 using System.Linq;
+using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
 using Microsoft.Win32;
@@ -31,6 +33,12 @@ public static class Program {
         string dir = opt.ContainsKey("config-dir") ? opt["config-dir"] : Config.DefaultDir;
         Directory.CreateDirectory(dir);
         if (opt.ContainsKey("list-games")) return ListGames(opt, dir);
+        if (opt.ContainsKey("sync-shortcuts")) {   // testes: aplica os atalhos da configuração e sai
+            string links;
+            if (opt.TryGetValue("links-dir", out links)) Integration.LinksDir = links;
+            Integration.SyncShortcuts(Config.Load(dir));
+            return 0;
+        }
         if (opt.ContainsKey("once")) return RunOnce(opt, dir);
 
         bool first;
@@ -55,7 +63,7 @@ public static class Program {
 
     static bool IsValued(string a) {
         switch (a.Substring(2).ToLowerInvariant()) {
-            case "server": case "token": case "wow": case "screenshots": case "config-dir": return true;
+            case "server": case "token": case "wow": case "screenshots": case "config-dir": case "links-dir": return true;
         }
         return false;
     }
@@ -120,6 +128,47 @@ public static class Integration {
                 }
             } catch { }
         }
+    }
+
+    // Atalhos "WowPilot Sync" no Menu Iniciar e na Área de Trabalho, apontando para este .exe (portátil: se ele
+    // mudar de pasta, o atalho é corrigido na próxima vez que abrir). .lnk pelo WScript.Shell, que já vem no Windows.
+    public static string LinksDir;   // só testes: pasta no lugar do Menu Iniciar/Área de Trabalho
+    const string LinkName = "WowPilot Sync.lnk";
+
+    public static string StartMenuLink {
+        get { return LinksDir != null ? Path.Combine(LinksDir, "menu", LinkName) : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), LinkName); }
+    }
+    public static string DesktopLink {
+        get { return LinksDir != null ? Path.Combine(LinksDir, "desktop", LinkName) : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), LinkName); }
+    }
+
+    public static void SyncShortcuts(Config c) {
+        SetShortcut(StartMenuLink, !c.NoStartMenu);
+        SetShortcut(DesktopLink, c.DesktopShortcut);
+    }
+
+    static void SetShortcut(string link, bool want) {
+        try {
+            if (!want) { if (File.Exists(link)) File.Delete(link); return; }
+            Directory.CreateDirectory(Path.GetDirectoryName(link));
+            Type type = Type.GetTypeFromProgID("WScript.Shell");
+            if (type == null) return;
+            object shell = Activator.CreateInstance(type), sc = null;
+            try {
+                sc = type.InvokeMember("CreateShortcut", BindingFlags.InvokeMethod, null, shell, new object[] { link });
+                Type st = sc.GetType();
+                string target = st.InvokeMember("TargetPath", BindingFlags.GetProperty, null, sc, null) as string;
+                if (File.Exists(link) && string.Equals(target, Exe, StringComparison.OrdinalIgnoreCase)) return;
+                st.InvokeMember("TargetPath", BindingFlags.SetProperty, null, sc, new object[] { Exe });
+                st.InvokeMember("WorkingDirectory", BindingFlags.SetProperty, null, sc, new object[] { Path.GetDirectoryName(Exe) });
+                st.InvokeMember("Description", BindingFlags.SetProperty, null, sc, new object[] { "WowPilot Sync" });
+                st.InvokeMember("IconLocation", BindingFlags.SetProperty, null, sc, new object[] { Exe + ",0" });
+                st.InvokeMember("Save", BindingFlags.InvokeMethod, null, sc, null);
+            } finally {
+                if (sc != null) Marshal.FinalReleaseComObject(sc);
+                Marshal.FinalReleaseComObject(shell);
+            }
+        } catch { }
     }
 
     // wowpilot://configurar?server=...&token=...
@@ -219,6 +268,7 @@ public class TrayApp : ApplicationContext {
         this.dir = dir;
         this.showEvent = showEvent;
         cfg = Config.Load(dir);
+        Integration.SyncShortcuts(cfg);
         if (url != null || !cfg.Complete) {
             Config proposal = Config.Load(dir);
             if (url != null) Integration.ParseLink(url, proposal);
@@ -283,6 +333,7 @@ public class TrayApp : ApplicationContext {
             if (f.ShowDialog(owner) != DialogResult.OK) return false;
             f.Result.Save(dir);
             cfg = f.Result;
+            Integration.SyncShortcuts(cfg);
             return true;
         }
     }
@@ -465,7 +516,7 @@ public class MainForm : Form {
 public class SettingsForm : Form {
     public Config Result;
     readonly TextBox server = new TextBox(), token = new TextBox(), wow = new TextBox();
-    readonly CheckBox showToken = new CheckBox(), autoStart = new CheckBox(), chat = new CheckBox(), chatLog = new CheckBox(), keep = new CheckBox();
+    readonly CheckBox showToken = new CheckBox(), autoStart = new CheckBox(), startMenu = new CheckBox(), desktop = new CheckBox(), chat = new CheckBox(), chatLog = new CheckBox(), keep = new CheckBox();
     readonly Label status = new Label(), found = new Label();
     readonly Button test, save;
     readonly Config start;
@@ -482,7 +533,7 @@ public class SettingsForm : Form {
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.CenterParent;
         BackColor = Color.White;
-        ClientSize = new Size(560, 452);
+        ClientSize = new Size(560, 508);
 
         var intro = new Label {
             Text = "Conecte este PC ao seu dashboard. O token é gerado na página Configurar do site.",
@@ -534,13 +585,17 @@ public class SettingsForm : Form {
         wow.Leave += (s, e) => ShowFound();   // ao sair do campo, não a cada tecla
         ShowFound();
         int y = 200;
-        foreach (CheckBox cb in new[] { autoStart, chat, chatLog, keep }) {
+        startMenu.Text = "Atalho no Menu Iniciar";
+        startMenu.Checked = !c.NoStartMenu;
+        desktop.Text = "Atalho na Área de Trabalho";
+        desktop.Checked = c.DesktopShortcut;
+        foreach (CheckBox cb in new[] { autoStart, startMenu, desktop, chat, chatLog, keep }) {
             cb.AutoSize = true;
             cb.Location = new Point(cb == chatLog ? 170 : 150, y);
             y += 28;
         }
 
-        status.SetBounds(150, 316, 390, 44);
+        status.SetBounds(150, 372, 390, 44);
         status.ForeColor = Theme.Muted;
 
         var bar = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 56, FlowDirection = FlowDirection.RightToLeft,
@@ -555,7 +610,7 @@ public class SettingsForm : Form {
         AcceptButton = save;
         CancelButton = cancel;
 
-        Controls.AddRange(new Control[] { intro, grid, found, rescan, autoStart, chat, chatLog, keep, status, bar });
+        Controls.AddRange(new Control[] { intro, grid, found, rescan, autoStart, startMenu, desktop, chat, chatLog, keep, status, bar });
         Shown += (s, e) => (server.Text.Length == 0 ? server : token.Text.Length == 0 ? token : (Control)save).Focus();
     }
 
@@ -593,7 +648,8 @@ public class SettingsForm : Form {
     Config Collect() {
         var c = new Config {
             Server = server.Text, Token = token.Text, WowPath = wow.Text,
-            SendChat = chat.Checked, NoChatLog = !chatLog.Checked, KeepScreenshots = keep.Checked
+            SendChat = chat.Checked, NoChatLog = !chatLog.Checked, KeepScreenshots = keep.Checked,
+            NoStartMenu = !startMenu.Checked, DesktopShortcut = desktop.Checked
         };
         c.Normalize();
         return c;

@@ -69,7 +69,7 @@ em `client/WowPilotSync/Sync.cs`, `$ClientVersion` no `.ps1` e `client/WowPilotS
 Para publicar, suba a versão nesses arquivos, faça o commit e crie a tag:
 
 ```bash
-git tag v1.3.2 && git push origin v1.3.2
+git tag v1.3.3 && git push origin v1.3.3
 ```
 
 O workflow confere as versões, compila e publica o Release com `WowPilotSync.exe` e `WowPilot.zip`.

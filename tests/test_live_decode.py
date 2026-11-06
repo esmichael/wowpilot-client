@@ -157,6 +157,38 @@ def check_games(check, exe: Path):
         shutil.rmtree(root.parent, ignore_errors=True)
 
 
+def check_shortcuts(check, exe: Path):
+    """Atalhos do .exe numa pasta de teste (no lugar do Menu Iniciar e da Área de Trabalho)."""
+    temp = subprocess.run(["cmd.exe", "/c", "echo %TEMP%"], capture_output=True, text=True).stdout.strip()
+    base = Path(subprocess.run(["wslpath", "-u", temp], capture_output=True, text=True).stdout.strip()) / "wowpilot_links"
+    shutil.rmtree(base, ignore_errors=True)
+    (base / "cfg").mkdir(parents=True)
+
+    def run(cfg: dict):
+        (base / "cfg" / "config.json").write_text(json.dumps(cfg), encoding="utf-8")
+        subprocess.run([str(exe), "--sync-shortcuts", "--config-dir", win_path(base / "cfg"), "--links-dir", win_path(base)],
+                       capture_output=True, timeout=60)
+
+    def target(kind: str):
+        link = base / kind / "WowPilot Sync.lnk"
+        if not link.exists():
+            return None
+        ps = f"(New-Object -ComObject WScript.Shell).CreateShortcut('{win_path(link)}').TargetPath"
+        return subprocess.run(["powershell.exe", "-NoProfile", "-Command", ps], capture_output=True, text=True).stdout.strip()
+
+    try:
+        run({})
+        check("WowPilotSync.exe: atalho no Menu Iniciar por padrão, apontando para o .exe; Área de Trabalho não",
+              (target("menu") or "").lower() == win_path(exe).lower() and target("desktop") is None,
+              f"menu={target('menu')} desktop={target('desktop')}")
+        run({"NoStartMenu": True, "DesktopShortcut": True})
+        check("WowPilotSync.exe: desligar remove o atalho; Área de Trabalho quando pedido",
+              target("menu") is None and (target("desktop") or "").lower() == win_path(exe).lower(),
+              f"menu={target('menu')} desktop={target('desktop')}")
+    finally:
+        shutil.rmtree(base, ignore_errors=True)
+
+
 def main():
     failed = 0
 
@@ -237,6 +269,7 @@ def main():
         exe = client / "WowPilotSync.exe"
         if exe.exists():
             check_games(check, exe)
+            check_shortcuts(check, exe)
     else:
         print("  (sem powershell.exe: clientes não testados)")
     shutil.rmtree(tmp, ignore_errors=True)
