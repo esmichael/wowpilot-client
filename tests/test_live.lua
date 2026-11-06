@@ -308,6 +308,37 @@ T["forever: spec do ForeverLevelingBiS quando não há talentos"] = function()
 end
 
 
+T["forever: ficha do jogador (vida, recurso, mana do druida em forma, atributos) e vida/recurso do grupo"] = function()
+    _G.C_Map = { GetBestMapForUnit = function() return 1413 end,
+                 GetPlayerMapPosition = function(_, u) return { GetXY = function() return 0.4, 0.3 end } end }
+    _G.UnitXP = function() return 100 end
+    _G.UnitXPMax = function() return 400 end
+    _G.GetXPExhaustion = function() return nil end
+    _G.UnitRace = function() return "Orc", "Orc", 2 end
+    _G.UnitFactionGroup = function() return "Horde", "Horda" end
+    _G.IsInGroup = function() return true end
+    _G.IsInRaid = function() return false end
+    local units = { party1 = true, party2 = true }
+    _G.UnitExists = function(u) return units[u] or false end
+    _G.UnitName = function(u) return ({ party1 = "Tank", party2 = "Longe" })[u] or "Fulano" end
+    _G.UnitHealth = function(u) return ({ player = 900, party1 = 50 })[u] end           -- party2 fora de alcance
+    _G.UnitHealthMax = function(u) return ({ player = 1000, party1 = 200 })[u] end
+    _G.UnitPowerType = function(u) if u == "player" then return 3, "ENERGY" end return 1, "RAGE" end
+    _G.UnitPower = function(u, t) if u == "player" then return t == 0 and 300 or 60 end return u == "party1" and 33 or nil end
+    _G.UnitPowerMax = function(u, t) if u == "player" then return t == 0 and 500 or 100 end return 100 end
+    _G.UnitStat = function(_, i) return 10, ({ 40, 55, 60, 25, 30 })[i], 0, 0 end
+    _G.UnitArmor = function() return 300, 420, 420, 0, 0 end
+    _G.UnitIsDeadOrGhost = function() return false end
+    boot()
+    local js = NS.Live.fullPayload(true, true)
+    assert(js:find('"me":{"armor":420,"hp":%[900,1000%],"mana":%[300,500%],"pw":%[60,100,"ENERGY"%],"st":%[40,55,60,25,30%]}'), "ficha: " .. js)
+    assert(js:find('"party":%[%["Tank","SHAMAN",40,30,25,33,"RAGE"%],%["Longe","SHAMAN",40,30,null,null,"RAGE"%]%]'), "grupo: " .. js)
+    _G.UnitPowerType = function() return 0, "MANA" end                                  -- mana como recurso: sem "mana" à parte
+    _G.UnitIsDeadOrGhost = function(u) return u == "player" end
+    js = NS.Live.fullPayload(true, true)
+    assert(js:find('"me":{[^}]*"dead":1') and not js:find('"mana":%['), "morto, sem mana duplicada: " .. js)
+end
+
 T["forever: andar agenda envio (mesmo sem evento), parado não"] = function()
     local px = 0.40
     _G.C_Map = { GetBestMapForUnit = function() return 1413 end,

@@ -942,11 +942,50 @@ local function rxpPath()
     return { guide = guide.name, cur = cur, total = #guide.steps, steps = out }
 end
 
+local NULL = 0 / 0   -- vira null no JSON: guarda a posição numa lista sem deslocar os itens seguintes
+
+local function pct(a, b)
+    a, b = num(a), num(b)
+    if a and b and b > 0 then return math.floor(a * 100 / b + 0.5) end
+end
+
+-- ficha do jogador: vida, recurso da classe (e a mana do druida em forma), atributos e armadura efetivos
+local function sheet()
+    local me = {}
+    local hp, hpMax = num(UnitHealth and UnitHealth("player")), num(UnitHealthMax and UnitHealthMax("player"))
+    if hp and hpMax then me.hp = { hp, hpMax } end
+    if UnitPowerType and UnitPower and UnitPowerMax then
+        local ptype, token = UnitPowerType("player")
+        local pw, pwMax = num(UnitPower("player")), num(UnitPowerMax("player"))
+        if pw and pwMax then me.pw = { pw, pwMax, type(token) == "string" and token or nil } end
+        if num(ptype) ~= 0 then   -- recurso atual não é mana: mostra a mana se a classe tiver (druida em forma)
+            local m, mMax = num(UnitPower("player", 0)), num(UnitPowerMax("player", 0))
+            if m and mMax and mMax > 0 then me.mana = { m, mMax } end
+        end
+    end
+    if UnitStat then
+        local st = {}
+        for i = 1, 5 do   -- força, agilidade, vigor, intelecto, espírito (2º retorno = valor efetivo)
+            local ok, _, v = pcall(UnitStat, "player", i)
+            st[i] = ok and num(v) or NULL
+        end
+        me.st = st
+    end
+    if UnitArmor then
+        local ok, _, eff = pcall(UnitArmor, "player")
+        if ok and num(eff) then me.armor = eff end
+    end
+    if UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then me.dead = 1 end
+    return me
+end
+
 -- outras posições que o jogo dá a addons: direção, corpo, alfinete do mapa, grupo, POIs de quest do próprio jogo
 local function extras()
     local M = C_Map
     local mapID = M and M.GetBestMapForUnit and safe(M.GetBestMapForUnit, "player")
     local out = {}
+    local okMe, me = pcall(sheet)
+    if okMe and next(me) then out.me = me end
     local f = GetPlayerFacing and num(safe(GetPlayerFacing))
     if f then out.facing = math.floor(f * 1000 + 0.5) / 1000 end
     if mapID and UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") and C_DeathInfo and C_DeathInfo.GetCorpseMapPosition then
@@ -969,7 +1008,13 @@ local function extras()
                 local x, y
                 if p and p.GetXY then x, y = p:GetXY() end
                 local _, cls = UnitClass(u)
-                party[#party + 1] = { UnitName(u), cls, num(x) and x * 100 or -1, num(y) and y * 100 or -1 }
+                -- vida e recurso em % (null se o jogo não informa, ex.: longe demais)
+                local hpP = pct(UnitHealth and UnitHealth(u), UnitHealthMax and UnitHealthMax(u))
+                local pwP = UnitPower and pct(UnitPower(u), UnitPowerMax(u))
+                local token
+                if UnitPowerType then token = select(2, UnitPowerType(u)) end
+                party[#party + 1] = { UnitName(u), cls, num(x) and x * 100 or -1, num(y) and y * 100 or -1,
+                                      hpP or NULL, pwP or NULL, type(token) == "string" and token or NULL }
             end
         end
         if #party > 0 then out.party = party end
