@@ -89,7 +89,7 @@ public class HttpResult {
 }
 
 public static class Http {
-    public const string Version = "1.5.0";
+    public const string Version = "1.6.0";
 
     static Http() {
         try { ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12; } catch { }

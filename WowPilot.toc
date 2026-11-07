@@ -3,7 +3,7 @@
 ## Title: WowPilot
 ## Notes: Envia gear, bolsas, moedas, Vault, M+, grupo e chat ao site WowPilot (código na tela + cliente WowPilotSync)
 ## Author: Michael
-## Version: 1.5.0
+## Version: 1.6.0
 ## SavedVariables: WowPilotDB
 
 WowPilot.lua
