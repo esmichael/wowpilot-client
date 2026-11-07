@@ -1005,6 +1005,32 @@ local function sheet()
     return me
 end
 
+-- voos aprendidos (ids do TaxiNodes): o jogo só lista os pontos de voo conhecidos com o mapa de voo aberto, então
+-- guarda por personagem a cada visita a um mestre de voo (um continente por vez: soma ao que já tinha)
+local function scanTaxi()
+    if not (db and C_TaxiMap and C_TaxiMap.GetAllTaxiNodes and GetTaxiMapID) then return end
+    local nodes = safe(C_TaxiMap.GetAllTaxiNodes, safe(GetTaxiMapID))
+    if type(nodes) ~= "table" then return end
+    db.taxi = db.taxi or {}
+    local me = selfTarget()
+    local known, added = db.taxi[me] or {}, false
+    for _, n in ipairs(nodes) do
+        local id = num(n.nodeID)
+        if id and not known[id] then known[id], added = true, true end
+    end
+    db.taxi[me] = known
+    if added and ns.Live and ns.Live.onDataChanged then ns.Live.onDataChanged("taxi") end
+end
+
+local function taxiList()
+    local known = db and db.taxi and db.taxi[selfTarget()]
+    if not known then return nil end
+    local out = {}
+    for id in pairs(known) do out[#out + 1] = id end
+    table.sort(out)
+    return #out > 0 and out or nil
+end
+
 -- outras posições que o jogo dá a addons: direção, corpo, alfinete do mapa, grupo, POIs de quest do próprio jogo
 local function extras()
     local M = C_Map
@@ -1052,6 +1078,7 @@ local function extras()
         end
         if #poi > 0 then out.poi = poi end
     end
+    out.taxi = taxiList()
     return out
 end
 
@@ -1107,7 +1134,7 @@ f:SetScript("OnEvent", function(_, event, arg1, ...)
         for _, ev in ipairs({ "PLAYER_REGEN_ENABLED", "BANKFRAME_OPENED", "GROUP_ROSTER_UPDATE", "INSPECT_READY",
                               "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "CHALLENGE_MODE_START",
                               "PLAYER_LOGOUT", "CHALLENGE_MODE_COMPLETED", "TIME_PLAYED_MSG", "PLAYER_DEAD",
-                              "PLAYER_TARGET_CHANGED" }) do
+                              "PLAYER_TARGET_CHANGED", "TAXIMAP_OPENED" }) do
             pcall(f.RegisterEvent, f, ev)
         end
         if GAME ~= "retail" and RequestTimePlayed then
@@ -1142,6 +1169,9 @@ f:SetScript("OnEvent", function(_, event, arg1, ...)
 
     elseif event == "PLAYER_TARGET_CHANGED" then
         pcall(ns.onTargetChanged)
+
+    elseif event == "TAXIMAP_OPENED" then
+        pcall(scanTaxi)
 
     elseif event == "TIME_PLAYED_MSG" then
         ns.onTimePlayed(arg1, ...)

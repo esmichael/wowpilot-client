@@ -339,6 +339,27 @@ T["forever: ficha do jogador (vida, recurso, mana do druida em forma, atributos)
     assert(js:find('"me":{[^}]*"dead":1') and not js:find('"mana":%['), "morto, sem mana duplicada: " .. js)
 end
 
+T["forever: voos aprendidos (mapa de voo aberto) vão em ex.taxi e somam entre continentes"] = function()
+    _G.C_Map = { GetBestMapForUnit = function() return 1413 end,
+                 GetPlayerMapPosition = function() return { GetXY = function() return 0.4, 0.3 end } end }
+    _G.UnitXP = function() return 100 end
+    _G.UnitXPMax = function() return 400 end
+    _G.GetXPExhaustion = function() return nil end
+    _G.UnitIsDeadOrGhost = function() return false end
+    _G.UnitRace = function() return "Orc", "Orc", 2 end
+    _G.UnitFactionGroup = function() return "Horde", "Horda" end
+    _G.GetTaxiMapID = function() return 1414 end
+    _G.C_TaxiMap = { GetAllTaxiNodes = function(m) assert(m == 1414); return { { nodeID = 25, name = "Encruzilhada" }, { nodeID = 23 } } end }
+    boot()
+    local js = NS.Live.fullPayload(true, true)
+    assert(not js:find('"taxi"'), "sem abrir o mapa de voo: " .. js)
+    fire("TAXIMAP_OPENED")
+    _G.C_TaxiMap = { GetAllTaxiNodes = function() return { { nodeID = 80 }, { nodeID = 25 } } end }
+    fire("TAXIMAP_OPENED")
+    js = NS.Live.fullPayload(true, true)
+    assert(js:find('"taxi":%[23,25,80%]'), "voos: " .. js)
+end
+
 T["forever: seta do RXP vai em path.arrow mesmo fora da lista, com o motivo"] = function()
     _G.UnitXP = function() return 100 end
     _G.UnitXPMax = function() return 400 end
