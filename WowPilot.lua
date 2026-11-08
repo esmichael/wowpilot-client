@@ -1051,13 +1051,11 @@ local function extras()
             out.pin = { wp.uiMapID, num(x) and x * 100, num(y) and y * 100 }
         end
     end
-    if mapID and IsInGroup and IsInGroup() then
-        -- grupo (party1..4) ou raide (raid1..40, sem você; com o subgrupo de cada um)
-        local party, raid = {}, IsInRaid and IsInRaid()
-        local n = raid and math.min(GetNumGroupMembers and GetNumGroupMembers() or 40, 40) or 4
-        for i = 1, n do
-            local u = (raid and "raid" or "party") .. i
-            if UnitExists(u) and not (raid and UnitIsUnit and UnitIsUnit(u, "player")) then
+    if mapID and IsInGroup and IsInGroup() and not IsInRaid() then
+        local party = {}
+        for i = 1, 4 do
+            local u = "party" .. i
+            if UnitExists(u) then
                 local p = safe(M.GetPlayerMapPosition, mapID, u)
                 local x, y
                 if p and p.GetXY then x, y = p:GetXY() end
@@ -1067,10 +1065,8 @@ local function extras()
                 local pwP = UnitPower and pct(UnitPower(u), UnitPowerMax(u))
                 local token
                 if UnitPowerType then token = select(2, UnitPowerType(u)) end
-                local sub
-                if raid and GetRaidRosterInfo then sub = num(select(3, GetRaidRosterInfo(i))) end
                 party[#party + 1] = { UnitName(u), cls, num(x) and x * 100 or -1, num(y) and y * 100 or -1,
-                                      hpP or NULL, pwP or NULL, type(token) == "string" and token or NULL, sub or NULL }
+                                      hpP or NULL, pwP or NULL, type(token) == "string" and token or NULL }
             end
         end
         if #party > 0 then out.party = party end
