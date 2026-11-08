@@ -19,8 +19,11 @@ local VERSION = 3
 local COLS = 255              -- máximo do cabeçalho (1 byte)
 local CELL = 2                -- px físicos por célula
 local BITS = 6                -- bits por célula (64 cores)
-local ROWS_MAX = 100          -- altura máxima de um código (linhas)
-local PAGE = math.floor((ROWS_MAX - 2) * (COLS - 1) * BITS / 8) - 16  -- bytes por print (~18 KB)
+-- altura máxima de um código (linhas). Era 100 (~18 KB, ~25 mil retângulos na tela num print só); com o código
+-- quase cheio o jogo às vezes deixava de desenhar a interface no quadro do print. 40 = ~7 KB por print: o envio
+-- normal cabe em um pequeno e um grande (o primeiro depois do /reload) vai em 2–3 prints menores.
+local ROWS_MAX = 40
+local PAGE = math.floor((ROWS_MAX - 2) * (COLS - 1) * BITS / 8) - 16  -- bytes por print (~7 KB)
 local MAX_PAGES = 20
 local RESEND = 300             -- s: partes grandes que só vão quando mudam (players, names) vão de novo depois disso
 local COMPRESS_MIN = 200      -- abaixo disso não vale comprimir
