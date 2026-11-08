@@ -22,6 +22,7 @@ local BITS = 6                -- bits por célula (64 cores)
 local ROWS_MAX = 100          -- altura máxima de um código (linhas)
 local PAGE = math.floor((ROWS_MAX - 2) * (COLS - 1) * BITS / 8) - 16  -- bytes por print (~18 KB)
 local MAX_PAGES = 20
+local RESEND = 300             -- s: partes grandes que só vão quando mudam (players, names) vão de novo depois disso
 local COMPRESS_MIN = 200      -- abaixo disso não vale comprimir
 local KIND_FULL = 3
 local CHAT_PER_MSG = 60
@@ -367,6 +368,17 @@ end
 
 function Live.fullPayload(preview, forceSimc)
     if not preview then cfg.seq = (cfg.seq or 0) + 1 end  -- prévia não gasta número
+    -- partes grandes que mudam pouco (equipamento de cada membro do grupo/raide: ~15 KB numa raide de 40; nomes dos
+    -- itens): só quando mudam, ou a cada RESEND s; o site guarda as do envio anterior. Envio menor = código menor
+    -- na tela (com o código quase cheio, o jogo deixava de desenhar a interface no quadro do print).
+    local function changed(key, value)
+        if value == nil then return nil end
+        local sums = cfg.sums or {}
+        local sum = adler32(json(value))
+        if not forceSimc and sums[key] == sum and time() - (sums[key .. "@"] or 0) < RESEND then return nil end
+        if not preview then sums[key], sums[key .. "@"] = sum, time(); cfg.sums = sums end
+        return value
+    end
     local function part(fn, ...)
         local ok, res = pcall(fn, ...)
         if ok then return res end
@@ -375,13 +387,13 @@ function Live.fullPayload(preview, forceSimc)
     local s = part(summary) or {}
     local data = {
         v = 1, t = time(), seq = cfg.seq or 0, s = s,
-        vault = part(vault), cur = part(currencies), players = part(players), bags = part(bags),
+        vault = part(vault), cur = part(currencies), players = changed("players", part(players)), bags = part(bags),
         bank = part(bank, preview), chat = part(chat, preview), simc = part(simc, preview, forceSimc),
         groups = part(groups, preview), mp = part(mythicPlus), vd = part(ns.collectVaultDetail),
     }
     if ns.GAME ~= "retail" then
         data.fv = part(ns.collectForever)
-        data.names = part(ns.itemDetails)
+        data.names = changed("names", part(ns.itemDetails))
         local maps = not cfg.mapsSent and part(ns.mapNames) or nil  -- 1x por sessão
         if maps or forceSimc then
             data.maps = maps or part(ns.mapNames)
@@ -599,6 +611,7 @@ ev:SetScript("OnEvent", function(_, event)
         db.live = db.live or {}
         cfg = db.live
         cfg.mapsSent = nil
+        cfg.sums = nil   -- entrou no jogo: manda tudo de novo no primeiro envio
         -- opções de versões antigas (canto, célula, cores… agora fixos)
         if cfg.interval == nil then cfg.interval = cfg.enabled == false and 0 or (cfg.throttle or DEFAULT_INTERVAL) end
         for _, k in ipairs({ "enabled", "throttle", "debounce", "corner", "cell", "colors", "gear", "gearThrottle" }) do
