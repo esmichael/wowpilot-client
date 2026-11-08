@@ -30,19 +30,13 @@ local DEFAULT_INTERVAL, MIN_INTERVAL = 30, 5
 -- eventos que disparam um envio (debounce + intervalo mínimo)
 local TRIGGERS = {
     WEEKLY_REWARDS_UPDATE = true, CHALLENGE_MODE_COMPLETED = true, CURRENCY_DISPLAY_UPDATE = true,
-    PLAYER_EQUIPMENT_CHANGED = "simc", PLAYER_SPECIALIZATION_CHANGED = "simc",
+    PLAYER_EQUIPMENT_CHANGED = "simc", PLAYER_SPECIALIZATION_CHANGED = "simc", GROUP_ROSTER_UPDATE = true,
     BAG_UPDATE_DELAYED = true, PLAYER_MONEY = true, CHALLENGE_MODE_MAPS_UPDATE = true,
     -- WoW: Forever (subir de nível): XP, quests, zona, profissões, talentos
     PLAYER_LEVEL_UP = true, PLAYER_XP_UPDATE = true, QUEST_LOG_UPDATE = true, ZONE_CHANGED_NEW_AREA = true,
     SKILL_LINES_CHANGED = true, CHARACTER_POINTS_CHANGED = true, UPDATE_INVENTORY_DURABILITY = true,
-    PLAYER_UPDATE_RESTING = true, QUEST_TURNED_IN = true, PLAYER_TARGET_CHANGED = true,
-    -- chovem em raide e cidade (placa de nome de cada um que aparece, mudança na raide): devagar (SLOW_INTERVAL)
-    NAME_PLATE_UNIT_ADDED = "slow", GROUP_ROSTER_UPDATE = "slow",
+    PLAYER_UPDATE_RESTING = true, QUEST_TURNED_IN = true, PLAYER_TARGET_CHANGED = true, NAME_PLATE_UNIT_ADDED = true,
 }
--- envios por causa deles no máximo a cada tanto: cada envio é um print (a interface pisca) e, numa raide de 40, eles
--- disparavam um envio a cada intervalo mesmo parado. Andar, XP, quest, nível, alvo e morte seguem no intervalo normal.
-local SLOW_INTERVAL = 30
-local SLOW_REASONS = { chat = true, group = true, groups = true }   -- Live.onDataChanged: chat, inspeção, sessões de grupo
 
 local cfg                      -- WowPilotDB.live
 local frame, bg, pool = nil, nil, {}
@@ -538,21 +532,15 @@ function Live.capture(reason, forceSimc)
 end
 WowPilot_Send = function() return Live.capture("manual") end  -- macro: /run WowPilot_Send()
 
--- debounce + intervalo: junta rajadas de eventos num envio só (intervalo 0 = só manual). slow = evento barulhento: no
--- máximo a cada SLOW_INTERVAL s (ou o intervalo, se maior). Um envio marcado mais cedo leva tudo junto; um pedido que
--- precisa sair antes do marcado o substitui.
-local function schedule(delay, slow)
-    if not cfg or cfg.interval == 0 then return end
-    local gap = slow and math.max(cfg.interval, SLOW_INTERVAL) or cfg.interval
-    local due = math.max(time() + delay, sched.last + gap)
-    if sched.due and sched.due <= due then return end
-    sched.due = due
-    C_Timer.After(math.max(0, due - time()), function()
-        if sched.due ~= due then return end   -- outro envio, mais cedo, assumiu
-        sched.due = nil
+-- debounce + intervalo: junta rajadas de eventos num envio só (intervalo 0 = só manual)
+local function schedule(delay)
+    if sched.scheduled or cfg.interval == 0 then return end
+    sched.scheduled = true
+    C_Timer.After(delay, function()
+        sched.scheduled = false
         if cfg.interval == 0 then return end
         local wait = cfg.interval - (time() - sched.last)
-        if wait > 0 then return schedule(wait, slow) end
+        if wait > 0 then return schedule(wait) end
         Live.capture("auto")
     end)
 end
@@ -596,8 +584,8 @@ function Live.checkMovement()
 end
 
 -- chamado pelo WowPilot.lua: chat novo, banco escaneado, inspeção de membro concluída, grupo
-function Live.onDataChanged(reason)
-    if cfg then schedule(DEBOUNCE, SLOW_REASONS[reason]) end
+function Live.onDataChanged()
+    if cfg then schedule(DEBOUNCE) end
 end
 
 ------------------------------------------------------------
@@ -641,7 +629,7 @@ ev:SetScript("OnEvent", function(_, event)
         end
     elseif TRIGGERS[event] then
         if TRIGGERS[event] == "simc" then simcDirty = true end
-        if cfg then schedule(DEBOUNCE, TRIGGERS[event] == "slow") end
+        if cfg then schedule(DEBOUNCE) end
     end
 end)
 
