@@ -43,6 +43,7 @@ public static class Program {
             Integration.Open((c.Server.Length > 0 ? c.Server : Config.DefaultServer) + "/");
             return 0;
         }
+        if (opt.ContainsKey("pulse-png")) return Pulse.DecodePngCli(opt["pulse-png"]);   // testes: faixa do pulso numa imagem
         if (opt.ContainsKey("list-games")) return ListGames(opt, dir);
         if (opt.ContainsKey("update")) return UpdateCli(opt, dir);
         if (opt.ContainsKey("install-addon")) {   // testes/suporte: instala/atualiza o addon embutido e sai
@@ -81,7 +82,7 @@ public static class Program {
 
     static bool IsValued(string a) {
         switch (a.Substring(2).ToLowerInvariant()) {
-            case "server": case "token": case "wow": case "screenshots": case "config-dir": case "links-dir": case "after-update": case "api": return true;
+            case "server": case "token": case "wow": case "screenshots": case "config-dir": case "links-dir": case "after-update": case "api": case "pulse-png": return true;
         }
         return false;
     }

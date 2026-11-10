@@ -135,7 +135,7 @@ public static class Updater {
 // WoW: Forever onde ele ainda não existe e atualiza onde está numa versão mais antiga. Pastas que são clone do git
 // (quem desenvolve) e versões mais novas instaladas à mão ficam como estão.
 public static class AddonInstaller {
-    static readonly string[] Files = { "WowPilot.toc", "WowPilot.lua", "WowPilotLive.lua" };
+    static readonly string[] Files = { "WowPilot.toc", "WowPilot.lua", "WowPilotLive.lua", "WowPilotPulse.lua" };
     static readonly string[] Products = { "wow", "wowf" };   // os jogos que o addon suporta
 
     public static string DirOf(Flavor f) { return Path.Combine(f.Dir, "Interface", "AddOns", "WowPilot"); }

@@ -14,7 +14,7 @@ import lupa
 
 ROOT = Path(__file__).resolve().parent.parent
 STUB = (ROOT / "tests" / "wow_stub.lua").read_text(encoding="utf-8")
-ADDON_FILES = ["WowPilot.lua", "WowPilotLive.lua"]  # mesma ordem do .toc
+ADDON_FILES = ["WowPilot.lua", "WowPilotLive.lua", "WowPilotPulse.lua"]  # mesma ordem do .toc
 TESTS = "\n".join((ROOT / "tests" / n).read_text(encoding="utf-8").rstrip().removesuffix("return T")
                   for n in ("test_wowpilot.lua", "test_live.lua")) + "\nreturn T\n"
 

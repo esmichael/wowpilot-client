@@ -22,6 +22,15 @@ tira um print e esconde o código; o cliente lê o PNG, decodifica e envia por H
 O formato do código (cabeçalho, paleta, páginas, compressão) está documentado no topo de `WowPilotLive.lua` e em
 `tests/livecode_ref.py`, que é o decodificador de referência.
 
+**Pulso (1.7):** além dos prints, `WowPilotPulse.lua` mantém uma faixa de 112×4 px (2 linhas de 56 células de 2 px,
+8 cores = 3 bits) sempre no canto superior esquerdo, filha do `WorldFrame` (fica com a interface escondida). Ela leva
+posição, direção, vida, morto/fantasma, combate, nível e mortes, com `adler32`. O cliente (`Pulse.cs`) acha as janelas
+do jogo (classe `GxWindowClass`), copia esse pedaço da tela a cada segundo (`CopyFromScreen`, sem print nem arquivo) e,
+quando o pacote muda, manda o JSON a `/api/pulse`. Janela minimizada, encoberta ou em tela cheia exclusiva: não lê
+nada, e os prints continuam valendo. O personagem vai como `adler32` de "Nome-Reino". `NoPulse` no `config.json`
+desliga no cliente; `/wpilot pulso off`, no jogo. Formato no topo de `WowPilotPulse.lua`; referência em
+`tests/test_pulse.py`, que também roda o `.exe` com `--pulse-png <imagem>`.
+
 A busca das instalações do jogo também mora no código compartilhado (`WowInstall` em `Decoder.cs`): chaves de
 desinstalação do Battle.net no registro, a chave antiga da Blizzard e caminhos comuns em todos os discos. Cada
 variação é uma pasta `_nome_` com `.flavor.info` (produto: `wow`, `wowf`…) ou `Wow*.exe`; pastas vazias de variações
@@ -46,6 +55,7 @@ O addon sempre coleta o chat; quem decide se ele sai do PC é o cliente: com `Se
 ```bash
 python3 tests/run_tests.py          # addon
 python3 tests/test_live_decode.py   # código de pixels: referência em Python; .ps1 e .exe quando há powershell.exe
+python3 tests/test_pulse.py         # faixa do pulso: addon → imagem → referência em Python e o .exe
 ```
 
 O `lupa` roda Lua 5.4; o WoW usa Lua 5.1. Evite sintaxe nova no addon (`goto`, `//`, `<const>`, inteiros de 64

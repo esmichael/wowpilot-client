@@ -44,7 +44,7 @@ def paint(lua, code, seed=1):
     d = ImageDraw.Draw(img)
     d.rectangle([0, 0, code.cols * CELL - 1, code.rows * CELL - 1], fill=(255, 255, 255))  # fundo do frame
     for t in lua.eval("TEXLIST").values():
-        if t.shown and t.w:
+        if t.shown and t.w and t.frame == "WowPilotLiveCode":   # a faixa do pulso fica por baixo do código
             col = tuple(round(255 * (getattr(t, k) or 0)) for k in "rgb")
             d.rectangle([t.x, -t.y, t.x + t.w - 1, -t.y + t.h - 1], fill=col)
     return img

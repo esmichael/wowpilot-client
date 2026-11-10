@@ -68,6 +68,11 @@ Comandos no jogo:
 | `/wpilot` | mostra o status e o último envio |
 | `/wpilot agora` | envia na hora (também como macro: `/run WowPilot_Send()`) |
 | `/wpilot intervalo N` | espera no mínimo N segundos entre envios automáticos (padrão 30, mínimo 5; `0` = só manual) |
+| `/wpilot pulso on\|off` | liga/desliga a faixinha no canto superior esquerdo que leva a posição ao site a cada segundo |
+
+A faixinha colorida fixa no canto superior esquerdo (cerca de 112×4 pixels) é o **pulso**: o WowPilot Sync lê
+esses pixels da janela do jogo a cada segundo, sem tirar print, e o mapa do site acompanha você quase em tempo real.
+Funciona com o jogo em janela ou em tela cheia em janela, à vista (minimizado ou coberto por outra janela, não dá).
 
 Para ver o seu painel: botão **Abrir o site** na janela do programa, no menu do ícone perto do relógio ou no atalho
 **WowPilot**. Ele abre no seu navegador padrão.

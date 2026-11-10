@@ -160,7 +160,7 @@ _G.CreateFrame = function(_, name)
     function f:CreateTexture()
         TEXTURES = TEXTURES + 1
         -- registra posição/tamanho para o teste ponta a ponta redesenhar a tela
-        local t = { shown = true, x = 0, y = 0, w = false, h = false }  -- fundo (SetAllPoints) fica w=false
+        local t = { shown = true, x = 0, y = 0, w = false, h = false, frame = name or "" }  -- fundo (SetAllPoints) fica w=false
         function t:SetPoint(_, _, _, x, y) self.x, self.y = x, y end
         function t:SetSize(w, h) self.w, self.h = w, h end
         function t:SetColorTexture(r, g, b) self.r, self.g, self.b = r, g, b end

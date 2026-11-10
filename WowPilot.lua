@@ -1208,5 +1208,7 @@ ns.collectVault, ns.collectVaultDetail, ns.bagIds = collectVault, collectVaultDe
 SLASH_WOWPILOT1 = "/wpilot"
 SLASH_WOWPILOT2 = "/wowpilot"
 SlashCmdList.WOWPILOT = function(input)
+    local sub, rest = (input or ""):match("^%s*(%S*)%s*(.-)%s*$")
+    if sub and sub:lower() == "pulso" and ns.Pulse then return ns.Pulse.command(rest:lower()) end
     ns.Live.command(input or "")
 end

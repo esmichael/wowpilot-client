@@ -17,6 +17,7 @@ public class Config {
     public bool KeepScreenshots, NoChatLog;
     public bool SendChat;
     public bool NoStartMenu, DesktopShortcut;
+    public bool NoPulse;          // pulso (posição a cada segundo lida da tela do jogo): ligado por padrão
     public bool NoAddonInstall;   // addon embutido: instala/atualiza sozinho no Retail e no Forever (padrão)   // atalhos: Menu Iniciar ligado, Área de Trabalho desligado (padrão)   // mensagens do chat: desligado por padrão (o addon coleta, o cliente tira antes de enviar)
 
     public static string DefaultDir {
@@ -44,6 +45,7 @@ public class Config {
             if (d.TryGetValue("NoStartMenu", out v) && v is bool) c.NoStartMenu = (bool)v;
             if (d.TryGetValue("DesktopShortcut", out v) && v is bool) c.DesktopShortcut = (bool)v;
             if (d.TryGetValue("NoAddonInstall", out v) && v is bool) c.NoAddonInstall = (bool)v;
+            if (d.TryGetValue("NoPulse", out v) && v is bool) c.NoPulse = (bool)v;
         } catch { }
         return c;
     }
@@ -53,7 +55,7 @@ public class Config {
         var d = new Dictionary<string, object> {
             { "Server", Server }, { "Token", Token }, { "WowPath", WowPath },
             { "KeepScreenshots", KeepScreenshots }, { "NoChatLog", NoChatLog }, { "SendChat", SendChat },
-            { "NoStartMenu", NoStartMenu }, { "DesktopShortcut", DesktopShortcut }, { "NoAddonInstall", NoAddonInstall } };
+            { "NoStartMenu", NoStartMenu }, { "DesktopShortcut", DesktopShortcut }, { "NoAddonInstall", NoAddonInstall }, { "NoPulse", NoPulse } };
         File.WriteAllText(Path.Combine(dir, "config.json"), new JavaScriptSerializer().Serialize(d), new UTF8Encoding(false));
     }
 
@@ -89,7 +91,7 @@ public class HttpResult {
 }
 
 public static class Http {
-    public const string Version = "1.6.0";
+    public const string Version = "1.7.0";
 
     static Http() {
         try { ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12; } catch { }
@@ -165,8 +167,10 @@ public class Engine {
     readonly Assembler assembler = new Assembler();
     readonly Dictionary<string, string> seen = new Dictionary<string, string>();
     DateTime lastChat = DateTime.MinValue, lastPendingTry = DateTime.MinValue;
-    Thread thread;
+    Thread thread, pulseThread;
     volatile bool stop;
+    public int Pulses;
+    public DateTime LastPulse = DateTime.MinValue;
     readonly ManualResetEvent wake = new ManualResetEvent(false);
 
     public Engine(Config cfg, string configDir, string shotDir) {
@@ -219,6 +223,10 @@ public class Engine {
         stop = false;
         thread = new Thread(Run) { IsBackground = true, Name = "WowPilotSync" };
         thread.Start();
+        if (!Cfg.NoPulse) {
+            pulseThread = new Thread(PulseLoop) { IsBackground = true, Name = "WowPilotPulse" };
+            pulseThread.Start();
+        }
     }
 
     public void Stop() {
@@ -264,6 +272,45 @@ public class Engine {
             try { Tick(false); } catch (Exception e) { Log("erro: " + e.Message, LogLevel.Error); }
             wake.WaitOne(1000);
             wake.Reset();
+        }
+    }
+
+    // pulso: a cada segundo lê a faixa do addon na janela do jogo e manda ao site quando ela muda (posição, vida…).
+    // Sem janela à vista (minimizada, encoberta, tela cheia exclusiva) não manda nada; os prints seguem como antes.
+    void PulseLoop() {
+        var lastSeq = new Dictionary<uint, int>();
+        bool reading = false, failing = false;
+        DateTime lastSeen = DateTime.MinValue;
+        while (!stop) {
+            DateTime t0 = DateTime.Now;
+            try {
+                List<PulseData> found = Cfg.Complete ? Pulse.ReadScreen() : new List<PulseData>();
+                if (found.Count > 0) {
+                    lastSeen = DateTime.Now;
+                    if (!reading) { reading = true; Log("pulso: lendo a faixa do jogo (posição a cada segundo, sem print)", LogLevel.Ok); }
+                } else if (reading && (DateTime.Now - lastSeen).TotalSeconds > 120) {
+                    reading = false;
+                    Log("pulso: faixa fora de vista (jogo minimizado, encoberto ou fechado)", LogLevel.Info);
+                }
+                foreach (PulseData d in found) {
+                    int prev;
+                    if (lastSeq.TryGetValue(d.Char, out prev) && prev == d.Seq) continue;
+                    HttpResult r = Http.Send(Cfg, "POST", "/api/pulse", Encoding.UTF8.GetBytes(d.Json()), "application/json; charset=utf-8", 5000);
+                    if (r.Ok || (r.Status >= 400 && r.Status < 500 && !r.AuthFailed)) lastSeq[d.Char] = d.Seq;
+                    if (r.Ok) {
+                        Pulses++;
+                        LastPulse = DateTime.Now;
+                        if (failing) { failing = false; Log("pulso: voltou a enviar", LogLevel.Ok); }
+                    } else if (!failing) {
+                        failing = true;
+                        Log("pulso: o site não aceitou (" + Describe(r) + ")", LogLevel.Warn);
+                    }
+                }
+            } catch (Exception e) {
+                if (!failing) { failing = true; Log("pulso: " + e.Message, LogLevel.Warn); }
+            }
+            int wait = 1000 - (int)(DateTime.Now - t0).TotalMilliseconds;
+            if (wait > 0) Thread.Sleep(wait);
         }
     }
 

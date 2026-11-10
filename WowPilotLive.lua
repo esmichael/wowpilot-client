@@ -694,5 +694,6 @@ function Live.command(arg)
             sched.last > 0 and date("às %H:%M:%S", sched.last) or "(nenhum nesta sessão)"))
         print("  /wpilot agora          envia já (macro: /run WowPilot_Send())")
         print("  /wpilot intervalo N    segundos mínimos entre envios automáticos (padrão 30, mínimo 5; 0 = só manual)")
+        print("  /wpilot pulso on|off   faixa no canto que leva a posição ao site a cada segundo, sem print")
     end
 end
