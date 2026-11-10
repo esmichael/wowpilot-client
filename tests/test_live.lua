@@ -354,10 +354,12 @@ T["forever: voos aprendidos (mapa de voo aberto) vão em ex.taxi e somam entre c
     local js = NS.Live.fullPayload(true, true)
     assert(not js:find('"taxi"'), "sem abrir o mapa de voo: " .. js)
     fire("TAXIMAP_OPENED")
-    _G.C_TaxiMap = { GetAllTaxiNodes = function() return { { nodeID = 80 }, { nodeID = 25 } } end }
+    -- o jogo lista também os não aprendidos do continente (state 2 = Unreachable): ficam de fora, e saem se estavam
+    _G.C_TaxiMap = { GetAllTaxiNodes = function() return { { nodeID = 80, state = 1 }, { nodeID = 25, state = 0 },
+                                                         { nodeID = 18, state = 2 }, { nodeID = 23, state = 2 } } end }
     fire("TAXIMAP_OPENED")
     js = NS.Live.fullPayload(true, true)
-    assert(js:find('"taxi":%[23,25,80%]'), "voos: " .. js)
+    assert(js:find('"taxi":%[25,80%]') and js:find('"taxiV":2'), "voos: " .. js)
 end
 
 T["forever: seta do RXP vai em path.arrow mesmo fora da lista, com o motivo"] = function()

@@ -1005,21 +1005,33 @@ local function sheet()
     return me
 end
 
--- voos aprendidos (ids do TaxiNodes): o jogo só lista os pontos de voo conhecidos com o mapa de voo aberto, então
--- guarda por personagem a cada visita a um mestre de voo (um continente por vez: soma ao que já tinha)
+-- voos aprendidos (ids do TaxiNodes): o jogo só lista os pontos de voo com o mapa de voo aberto, então guarda por
+-- personagem a cada visita a um mestre de voo (um continente por vez: soma ao que já tinha). O GetAllTaxiNodes traz
+-- também os NÃO aprendidos do continente, com state = Unreachable (2): esses saem (até a 1.7.0 entravam todos).
+local TAXI_V = 2
+local UNREACHABLE = Enum and Enum.FlightPathState and Enum.FlightPathState.Unreachable or 2
 local function scanTaxi()
     if not (db and C_TaxiMap and C_TaxiMap.GetAllTaxiNodes and GetTaxiMapID) then return end
     local nodes = safe(C_TaxiMap.GetAllTaxiNodes, safe(GetTaxiMapID))
     if type(nodes) ~= "table" then return end
     db.taxi = db.taxi or {}
     local me = selfTarget()
-    local known, added = db.taxi[me] or {}, false
+    local known, changed = db.taxi[me] or {}, false
     for _, n in ipairs(nodes) do
         local id = num(n.nodeID)
-        if id and not known[id] then known[id], added = true, true end
+        local learned = num(n.state) ~= UNREACHABLE
+        if id and learned and not known[id] then known[id], changed = true, true end
+        if id and not learned and known[id] then known[id], changed = nil, true end
     end
     db.taxi[me] = known
-    if added and ns.Live and ns.Live.onDataChanged then ns.Live.onDataChanged("taxi") end
+    if changed and ns.Live and ns.Live.onDataChanged then ns.Live.onDataChanged("taxi") end
+end
+
+-- listas gravadas até a 1.7.0 têm todos os pontos do continente: descarta (a próxima visita a um mestre de voo refaz)
+local function migrateTaxi()
+    if db and (db.taxiV or 0) < TAXI_V then
+        db.taxi, db.taxiV = {}, TAXI_V
+    end
 end
 
 local function taxiList()
@@ -1083,6 +1095,7 @@ local function extras()
         if #poi > 0 then out.poi = poi end
     end
     out.taxi = taxiList()
+    out.taxiV = out.taxi and TAXI_V or nil   -- o site ignora listas sem isso (até a 1.7.0: com os não aprendidos)
     return out
 end
 
@@ -1128,6 +1141,7 @@ f:SetScript("OnEvent", function(_, event, arg1, ...)
         WowPilotDB = WowPilotDB or {}
         db = WowPilotDB
         for _, k in ipairs(OBSOLETE) do db[k] = nil end
+        migrateTaxi()
         db.chat = db.chat or {}
         while #db.chat > CHAT_MAX do table.remove(db.chat, 1) end
         db.groups = db.groups or {}
