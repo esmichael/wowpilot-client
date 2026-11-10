@@ -145,6 +145,8 @@ function Pulse.tick()
     end
 end
 
+function Pulse.active() return cfg ~= nil and not cfg.off end
+
 function Pulse.command(arg)
     if arg == "off" or arg == "desligar" then
         cfg.off = true

@@ -587,6 +587,9 @@ end
 -- conta) ~4 jd; sem ela, 0,3% do mapa. O intervalo mínimo entre envios continua valendo (schedule).
 local MOVE_YARDS = 4
 local MOVE_DEBOUNCE = 1   -- andar não vem em rajada como os eventos: espera menos que o DEBOUNCE
+-- com o pulso ligado a posição vai pela faixa a cada segundo: andar só puxa um print (quests, bolsas…) a cada tanto.
+-- Antes cada passo virava um print completo a cada intervalo, e o site remontava tudo (~1 MB) a cada poucos segundos.
+local MOVE_PULSE_GAP = 60
 local function worldPos()
     if not UnitPosition then return nil end
     local a, b, c = ns.safe(UnitPosition, "player")
@@ -605,7 +608,9 @@ function Live.checkMovement()
         moved = not lastPos or math.abs(lastPos[2] - x) + math.abs(lastPos[3] - y) > 0.3
     end
     if not lastPos or lastPos[1] ~= id or moved then
+        local changedMap = not lastPos or lastPos[1] ~= id
         lastPos = { id, x, y, a, b, c }
+        if not changedMap and ns.Pulse and ns.Pulse.active() and time() - sched.last < MOVE_PULSE_GAP then return end
         schedule(MOVE_DEBOUNCE)
     end
 end
