@@ -279,6 +279,8 @@ public class Engine {
     // Sem janela à vista (minimizada, encoberta, tela cheia exclusiva) não manda nada; os prints seguem como antes.
     void PulseLoop() {
         var lastSeq = new Dictionary<uint, int>();
+        var sentAt = new Dictionary<uint, DateTime>();
+        var flushed = new HashSet<uint>();   // parado: o último pulso vai de novo uma vez (o site monta a rota com ele)
         bool reading = false, failing = false;
         DateTime lastSeen = DateTime.MinValue;
         while (!stop) {
@@ -294,7 +296,12 @@ public class Engine {
                 }
                 foreach (PulseData d in found) {
                     int prev;
-                    if (lastSeq.TryGetValue(d.Char, out prev) && prev == d.Seq) continue;
+                    DateTime at;
+                    if (lastSeq.TryGetValue(d.Char, out prev) && prev == d.Seq) {
+                        if (flushed.Contains(d.Char) || !sentAt.TryGetValue(d.Char, out at) || (DateTime.Now - at).TotalSeconds < 6) continue;
+                        flushed.Add(d.Char);
+                    } else flushed.Remove(d.Char);
+                    sentAt[d.Char] = DateTime.Now;
                     HttpResult r = Http.Send(Cfg, "POST", "/api/pulse", Encoding.UTF8.GetBytes(d.Json()), "application/json; charset=utf-8", 5000);
                     if (r.Ok || (r.Status >= 400 && r.Status < 500 && !r.AuthFailed)) lastSeq[d.Char] = d.Seq;
                     if (r.Ok) {

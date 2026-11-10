@@ -25,7 +25,7 @@ O formato do código (cabeçalho, paleta, páginas, compressão) está documenta
 **Pulso (1.7):** além dos prints, `WowPilotPulse.lua` mantém uma faixa de 112×4 px (2 linhas de 56 células de 2 px,
 8 cores = 3 bits) sempre no canto superior esquerdo, filha do `WorldFrame` (fica com a interface escondida). Ela leva
 posição, direção, vida, morto/fantasma, combate, nível e mortes, com `adler32`. O cliente (`Pulse.cs`) acha as janelas
-do jogo (classe `GxWindowClass`), copia esse pedaço da tela a cada segundo (`CopyFromScreen`, sem print nem arquivo) e,
+do jogo (classe `waApplication Window` no cliente atual, `GxWindowClass` nos antigos, ou título "World of Warcraft"), copia esse pedaço da tela a cada segundo (`CopyFromScreen`, sem print nem arquivo) e,
 quando o pacote muda, manda o JSON a `/api/pulse`. Janela minimizada, encoberta ou em tela cheia exclusiva: não lê
 nada, e os prints continuam valendo. O personagem vai como `adler32` de "Nome-Reino". `NoPulse` no `config.json`
 desliga no cliente; `/wpilot pulso off`, no jogo. Formato no topo de `WowPilotPulse.lua`; referência em

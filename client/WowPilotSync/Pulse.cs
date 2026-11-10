@@ -89,18 +89,24 @@ public static class Pulse {
     delegate bool EnumProc(IntPtr hwnd, IntPtr lParam);
     [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc cb, IntPtr lParam);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr h, StringBuilder s, int n);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
     [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
     [DllImport("user32.dll")] static extern bool IsIconic(IntPtr h);
     [DllImport("user32.dll")] static extern bool GetClientRect(IntPtr h, out RECT r);
     [DllImport("user32.dll")] static extern bool ClientToScreen(IntPtr h, ref POINT p);
 
-    // janelas do jogo visíveis (classe GxWindowClass: Retail, Forever, Classic) → canto da área do jogo na tela
+    // janelas do jogo visíveis → canto da área do jogo na tela. Classe "waApplication Window" no cliente atual (Retail e
+    // Forever, testado 09/11/2026); "GxWindowClass" nos antigos; o título "World of Warcraft" cobre o resto.
     static List<Point> GameOrigins() {
         var found = new List<Point>();
         EnumWindows(delegate(IntPtr h, IntPtr _) {
             StringBuilder cls = new StringBuilder(64);
             GetClassName(h, cls, cls.Capacity);
-            if (cls.ToString() != "GxWindowClass" || !IsWindowVisible(h) || IsIconic(h)) return true;
+            StringBuilder title = new StringBuilder(64);
+            GetWindowText(h, title, title.Capacity);
+            string c = cls.ToString();
+            bool game = c == "waApplication Window" || c == "GxWindowClass" || title.ToString().StartsWith("World of Warcraft");
+            if (!game || !IsWindowVisible(h) || IsIconic(h)) return true;
             RECT r;
             if (!GetClientRect(h, out r) || r.Right < COLS * CELL || r.Bottom < ROWS * CELL) return true;
             POINT p = new POINT();
