@@ -442,4 +442,15 @@ T["forever: jogadores à vista (placas de nome) vão em nearP, com inimigo marca
     _G.UnitGUID, _G.UnitName = oldGUID, oldName
 end
 
+T["ajustes: lista o atual e o sugerido; aplicar muda só o que difere"] = function()
+    local cv = { nameplateMaxDistance = "20", nameplateShowEnemies = "1", nameplateShowFriends = "0",
+                 nameplateShowFriendlyNPCs = "0", nameplateShowAll = "0" }
+    _G.C_CVar = { GetCVar = function(k) return cv[k] end, SetCVar = function(k, v) cv[k] = v end }
+    boot()
+    slash("ajustes")
+    assert(cv.nameplateMaxDistance == "20", "só listar não muda")
+    slash("ajustes aplicar")
+    assert(cv.nameplateMaxDistance == "41" and cv.nameplateShowFriends == "1" and cv.nameplateShowAll == "1", "aplicou")
+end
+
 return T

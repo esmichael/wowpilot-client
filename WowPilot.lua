@@ -1260,8 +1260,42 @@ ns.collectVault, ns.collectVaultDetail, ns.bagIds = collectVault, collectVaultDe
 ------------------------------------------------------------
 SLASH_WOWPILOT1 = "/wpilot"
 SLASH_WOWPILOT2 = "/wowpilot"
+-- /wpilot ajustes: configurações do jogo que ajudam o mapa ao vivo (lista o atual e o sugerido; "aplicar" muda todas)
+local TWEAKS = {
+    { "nameplateMaxDistance", "41", "alcance das placas de nome (até onde o mapa vê NPCs e jogadores perto)" },
+    { "nameplateShowEnemies", "1", "placas de inimigos ligadas (alerta de inimigo por perto)" },
+    { "nameplateShowFriends", "1", "placas de aliados ligadas (jogadores aliados à vista)" },
+    { "nameplateShowFriendlyNPCs", "1", "placas de NPCs amigáveis (NPCs à vista no mapa)" },
+    { "nameplateShowAll", "1", "placas sempre, não só em combate" },
+}
+local function cvar(name)
+    if C_CVar and C_CVar.GetCVar then return C_CVar.GetCVar(name) end
+    return GetCVar and GetCVar(name)
+end
+local function tweaks(arg)
+    if arg == "aplicar" then
+        if InCombatLockdown() then return ns.say("em combate não dá para mudar: tente depois") end
+        local n = 0
+        for _, t in ipairs(TWEAKS) do
+            local cur = cvar(t[1])
+            if cur ~= nil and cur ~= t[2] then
+                if C_CVar and C_CVar.SetCVar then C_CVar.SetCVar(t[1], t[2]) elseif SetCVar then SetCVar(t[1], t[2]) end
+                n = n + 1
+            end
+        end
+        return ns.say(n > 0 and (n .. " ajuste(s) aplicado(s). /wpilot ajustes para conferir") or "já estava tudo ajustado")
+    end
+    ns.say("ajustes sugeridos (atual → sugerido) · /wpilot ajustes aplicar muda todos:")
+    for _, t in ipairs(TWEAKS) do
+        local cur = cvar(t[1])
+        ns.say(string.format("  %s %s: %s → %s — %s", cur == t[2] and "✓" or "•", t[1], tostring(cur or "?"), t[2], t[3]))
+    end
+end
+ns.tweaks = tweaks
+
 SlashCmdList.WOWPILOT = function(input)
     local sub, rest = (input or ""):match("^%s*(%S*)%s*(.-)%s*$")
     if sub and sub:lower() == "pulso" and ns.Pulse then return ns.Pulse.command(rest:lower()) end
+    if sub and sub:lower() == "ajustes" then return tweaks(rest:lower()) end
     ns.Live.command(input or "")
 end

@@ -708,5 +708,6 @@ function Live.command(arg)
         print("  /wpilot agora          envia já (macro: /run WowPilot_Send())")
         print("  /wpilot intervalo N    segundos mínimos entre envios automáticos (padrão 30, mínimo 5; 0 = só manual)")
         print("  /wpilot pulso on|off   faixa no canto que leva a posição ao site a cada segundo, sem print")
+        print("  /wpilot ajustes        configurações sugeridas do jogo (placas de nome) · /wpilot ajustes aplicar")
     end
 end
