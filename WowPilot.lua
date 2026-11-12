@@ -1295,9 +1295,80 @@ local function tweaks(arg)
 end
 ns.tweaks = tweaks
 
+-- /wpilot vender 2589,4865,…: com o vendedor aberto, vende todos os itens com esses IDs (lista copiada da janela de
+-- bolsas do site). Um por vez, com uma pausa curta (o servidor recusa venda em rajada).
+local function sell(arg)
+    local want = {}
+    for id in (arg or ""):gmatch("%d+") do want[tonumber(id)] = true end
+    if not next(want) then return ns.say("uso: /wpilot vender 2589,4865 (copie da janela de bolsas do site)") end
+    if not (MerchantFrame and MerchantFrame:IsShown()) then return ns.say("abra um vendedor primeiro") end
+    local queue, total = {}, 0
+    for _, bag in ipairs(bagIds()) do
+        for slot = 1, (safe(C_Container.GetContainerNumSlots, bag) or 0) do
+            local info = safe(C_Container.GetContainerItemInfo, bag, slot)
+            if info and info.itemID and want[info.itemID] and not info.isLocked and not (db.protect or {})[info.itemID] then
+                local price = select(11, safe(C_Item.GetItemInfo, info.itemID)) or 0
+                if price > 0 then
+                    queue[#queue + 1] = { bag, slot }
+                    total = total + price * (info.stackCount or 1)
+                end
+            end
+        end
+    end
+    if #queue == 0 then return ns.say("nada para vender desses IDs (ou o vendedor não compra)") end
+    local i = 0
+    local function step()
+        i = i + 1
+        if i > #queue or not (MerchantFrame and MerchantFrame:IsShown()) then
+            return ns.say(string.format("vendidos %d de %d espaço(s) · %s", i - 1, #queue, GetCoinTextureString and GetCoinTextureString(total) or (total .. " cobre")))
+        end
+        safe(C_Container.UseContainerItem, queue[i][1], queue[i][2])
+        C_Timer.After(0.2, step)
+    end
+    step()
+end
+ns.sell = sell
+
+-- /wpilot proteger 6948,… : itens que nunca vão para o vendedor (lista do site; substitui a anterior; sem IDs, mostra).
+-- /wpilot vender pula esses e, se um for vendido na mão, o addon compra de volta na hora.
+local function protect(arg, clear)
+    if clear then db.protect = {}; return ns.say("proteção limpa") end
+    local list, n = {}, 0
+    for id in (arg or ""):gmatch("%d+") do list[tonumber(id)] = true; n = n + 1 end
+    if n == 0 then
+        local ids = {}
+        for id in pairs(db.protect or {}) do ids[#ids + 1] = id end
+        table.sort(ids)
+        return ns.say(#ids > 0 and ("protegidos: " .. table.concat(ids, ",") .. " · /wpilot proteger nada = limpar") or "nenhum item protegido")
+    end
+    db.protect = list
+    ns.say(n .. " item(ns) protegido(s): não vão para o vendedor")
+end
+ns.protect = protect
+
+-- vendeu um protegido (clique direito no vendedor): depois de cada venda confere o último da recompra e compra de volta
+local function guardSale()
+    if not (db and db.protect and next(db.protect) and MerchantFrame and MerchantFrame:IsShown()) then return end
+    C_Timer.After(0.4, function()
+        local n = GetNumBuybackItems and GetNumBuybackItems() or 0
+        local link = n > 0 and GetBuybackItemLink and GetBuybackItemLink(n)
+        local id = link and tonumber(link:match("item:(%d+)"))
+        if id and db.protect[id] then
+            pcall(BuybackItem, n)
+            ns.say("item protegido vendido: comprei de volta " .. link)
+        end
+    end)
+end
+ns.guardSale = guardSale
+if C_Container and C_Container.UseContainerItem and hooksecurefunc then
+    hooksecurefunc(C_Container, "UseContainerItem", guardSale)
+end
+
 SlashCmdList.WOWPILOT = function(input)
     local sub, rest = (input or ""):match("^%s*(%S*)%s*(.-)%s*$")
     if sub and sub:lower() == "pulso" and ns.Pulse then return ns.Pulse.command(rest:lower()) end
     if sub and sub:lower() == "ajustes" then return tweaks(rest:lower()) end
+    if sub and sub:lower() == "vender" then return sell(rest) end
+    if sub and sub:lower() == "proteger" then return protect(rest:lower() == "nada" and "" or rest, rest:lower() == "nada") end
     ns.Live.command(input or "")
 end

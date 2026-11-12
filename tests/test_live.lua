@@ -5,6 +5,42 @@ local function full(preview)
     return NS.Live.fullPayload(preview)
 end
 
+T["/wpilot vender: só com vendedor aberto, vende os itens dos IDs pedidos"] = function()
+    boot()
+    local sold, said = {}, {}
+    local oldC, oldI, oldSay = _G.C_Container, _G.C_Item.GetItemInfo, NS.say
+    NS.say = function(m) said[#said + 1] = m end
+    _G.C_Container = {
+        GetContainerNumSlots = function(b) return b == 0 and 3 or 0 end,
+        GetContainerItemInfo = function(_, s) return ({ { itemID = 2589, stackCount = 5 }, { itemID = 4865, stackCount = 1 }, { itemID = 2589, stackCount = 2 } })[s] end,
+        UseContainerItem = function(b, s) sold[#sold + 1] = b * 100 + s end,
+    }
+    _G.C_Item.GetItemInfo = function() return "x", nil, 1, 1, 1, "", "", 20, "", 0, 13 end
+    _G.MerchantFrame = { IsShown = function() return false end }
+    SlashCmdList.WOWPILOT("vender 2589")
+    assert(#sold == 0 and said[#said]:find("vendedor"), "sem vendedor não vende")
+    _G.MerchantFrame = { IsShown = function() return true end }
+    SlashCmdList.WOWPILOT("vender 2589")
+    run_timers()
+    assert(#sold == 2 and sold[1] == 1 and sold[2] == 3, "vende os dois espaços do 2589")
+    -- protegido: não vende; vendido na mão, compra de volta
+    sold = {}
+    SlashCmdList.WOWPILOT("proteger 2589")
+    SlashCmdList.WOWPILOT("vender 2589,4865")
+    run_timers()
+    assert(#sold == 1 and sold[1] == 2, "pula o protegido")
+    local bought
+    _G.GetNumBuybackItems = function() return 3 end
+    _G.GetBuybackItemLink = function() return "|cffffffff|Hitem:2589::::::::|h[Linho]|h|r" end
+    _G.BuybackItem = function(i) bought = i end
+    NS.guardSale()
+    run_timers()
+    assert(bought == 3, "recompra o protegido vendido")
+    SlashCmdList.WOWPILOT("proteger nada")
+    _G.GetNumBuybackItems, _G.GetBuybackItemLink, _G.BuybackItem = nil, nil, nil
+    _G.C_Container, _G.C_Item.GetItemInfo, NS.say, _G.MerchantFrame = oldC, oldI, oldSay, nil
+end
+
 T["live: captura desenha o código, tira screenshot e restaura CVars"] = function()
     boot()  -- inclui a captura inicial do login (finalizada pelo timer de segurança)
     assert(SCREENSHOTS == 1, "captura inicial após o login: " .. SCREENSHOTS)
