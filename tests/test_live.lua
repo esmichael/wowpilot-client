@@ -437,7 +437,7 @@ T["forever: jogadores à vista (placas de nome) vão em nearP, com inimigo marca
     _G.UnitIsDead = function() return false end
     boot()
     local js = NS.Live.fullPayload(true, true)
-    assert(js:find('"nearP":%[%["Inimigo","ROGUE",%d+,50,0,2,1%]%]'), "jogadores: " .. js)
+    assert(js:find('"nearP":%[%["Inimigo","ROGUE",%d+,50,0,2,1,"[^"]*","[^"]*","[^"]*"%]%]'), "jogadores: " .. js)
     assert(NS.Live.hostilePlayer("nameplate1") and not NS.Live.hostilePlayer("nameplate2"), "inimigo dispara envio já")
     _G.UnitGUID, _G.UnitName = oldGUID, oldName
 end

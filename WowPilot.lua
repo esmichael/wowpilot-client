@@ -848,7 +848,15 @@ local function target()
     if isSecretValue(t.name) then t.name = nil end
     local hp, hpMax = num(UnitHealth("target")), num(UnitHealthMax("target"))
     if hp and hpMax and hpMax > 0 then t.hp = math.floor(hp / hpMax * 100 + 0.5) end
-    if kind == "Player" then t.id, t.class = nil, select(2, UnitClass("target")) end
+    if kind == "Player" then   -- jogador: classe, raça, reino e guilda (para a ficha e o link de estatísticas)
+        t.id, t.class = nil, select(2, UnitClass("target"))
+        local _, realm = UnitName("target")
+        if realm and realm ~= "" and not isSecretValue(realm) then t.realm = realm end
+        local race = UnitRace and select(2, UnitRace("target"))
+        if race and not isSecretValue(race) then t.race = race end
+        local guild = GetGuildInfo and GetGuildInfo("target")
+        if guild and not isSecretValue(guild) then t.guild = guild end
+    end
     local d = targetDisplay()
     if d and d > 0 then t.display = d end
     return t
@@ -885,7 +893,7 @@ local function visibleNpcs()
 end
 
 -- jogadores visíveis agora (placas de nome; sem você nem o grupo): [[nome, classe, nível, vida %, morto, reação,
--- atacável], ...] (máx. 20). O jogo não dá a posição deles: só que estão perto (~40 jd) e na tela.
+-- atacável, reino, guilda, raça], ...] (máx. 20). O jogo não dá a posição deles: só que estão perto (~40 jd) e na tela.
 local function visiblePlayers()
     local NP = C_NamePlate
     if not (NP and NP.GetNamePlates) then return nil end
@@ -902,6 +910,12 @@ local function visiblePlayers()
                                   (hp and hpMax and hpMax > 0) and math.floor(hp / hpMax * 100 + 0.5) or -1,
                                   UnitIsDeadOrGhost(unit) and 1 or 0, num(UnitReaction(unit, "player")) or 0,
                                   UnitCanAttack and UnitCanAttack("player", unit) and 1 or 0 }
+                local _, realm = UnitName(unit)
+                local guild = GetGuildInfo and GetGuildInfo(unit)
+                local race = UnitRace and select(2, UnitRace(unit))
+                out[#out][8] = (realm and realm ~= "" and not isSecretValue(realm)) and realm or ""
+                out[#out][9] = (guild and not isSecretValue(guild)) and guild or ""
+                out[#out][10] = (race and not isSecretValue(race)) and race or ""
             end
         end
     end
