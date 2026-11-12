@@ -39,6 +39,14 @@ T["chat: grava canais privados/grupo, ignora secreto e canal público"] = functi
     assert(c[2].from == "Amigo#1234", "BNet deve usar battleTag")
 end
 
+T["chat: saque e dinheiro vão para o chat (aba saque do site)"] = function()
+    boot()
+    fire("CHAT_MSG_LOOT", "Você recebe saque: |cff9d9d9d|Hitem:4865::::::::|h[Garra Rachada]|h|r.", "")
+    fire("CHAT_MSG_MONEY", "Você saqueou 12 Prata", "")
+    local c = WowPilotDB.chat
+    assert(#c == 2 and c[1].ch == "loot" and c[2].ch == "money", "saque não gravou")
+end
+
 T["grupo: inspeciona quem está perto, marca quem está longe"] = function()
     _G.UnitExists = function(u) return u == "party1" or u == "party2" end
     _G.UnitGUID = function(u) return ({ party1 = "G1", party2 = "G2", player = "P" })[u] end

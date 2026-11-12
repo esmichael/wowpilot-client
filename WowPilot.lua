@@ -390,6 +390,8 @@ local CHAT_EVENTS = {
     CHAT_MSG_GUILD = "guild",          CHAT_MSG_OFFICER = "officer",
     CHAT_MSG_SAY = "say",              CHAT_MSG_YELL = "yell",
     CHAT_MSG_CHANNEL = "channel",      -- Comércio/Geral etc. (desligado por padrão)
+    CHAT_MSG_LOOT = "loot",            CHAT_MSG_MONEY = "money",      -- aba "saque" do chat no site
+    CHAT_MSG_CURRENCY = "currency",
 }
 local CHAT_OFF = { say = true, yell = true, channel = true }  -- canais públicos ficam de fora
 
