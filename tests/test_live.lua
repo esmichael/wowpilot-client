@@ -29,6 +29,12 @@ T["/wpilot vender: só com vendedor aberto, vende os itens dos IDs pedidos"] = f
     SlashCmdList.WOWPILOT("vender 2589,4865")
     run_timers()
     assert(#sold == 1 and sold[1] == 2, "pula o protegido")
+    SlashCmdList.WOWPILOT("proteger nada")
+    sold = {}
+    SlashCmdList.WOWPILOT("vender 2589@0:3,4865@0:1")   -- só a pilha do espaço 3 (o espaço 1 não é 4865)
+    run_timers()
+    assert(#sold == 1 and sold[1] == 3, "vende pilha por pilha")
+    SlashCmdList.WOWPILOT("proteger 2589")
     local bought
     _G.GetNumBuybackItems = function() return 3 end
     _G.GetBuybackItemLink = function() return "|cffffffff|Hitem:2589::::::::|h[Linho]|h|r" end

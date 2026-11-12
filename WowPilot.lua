@@ -1298,15 +1298,21 @@ ns.tweaks = tweaks
 -- /wpilot vender 2589,4865,…: com o vendedor aberto, vende todos os itens com esses IDs (lista copiada da janela de
 -- bolsas do site). Um por vez, com uma pausa curta (o servidor recusa venda em rajada).
 local function sell(arg)
-    local want = {}
-    for id in (arg or ""):gmatch("%d+") do want[tonumber(id)] = true end
-    if not next(want) then return ns.say("uso: /wpilot vender 2589,4865 (copie da janela de bolsas do site)") end
+    -- "2589" = todas as pilhas do item; "2589@0:3" = só a pilha da bolsa 0, espaço 3 (se ainda for esse item)
+    local want, at = {}, {}
+    for tok in (arg or ""):gmatch("[^,%s]+") do
+        local id, bag, slot = tok:match("^(%d+)@(%d+):(%d+)$")
+        if id then at[tonumber(bag) * 100 + tonumber(slot)] = tonumber(id)
+        elseif tok:match("^%d+$") then want[tonumber(tok)] = true end
+    end
+    if not next(want) and not next(at) then return ns.say("uso: /wpilot vender 2589,4865@0:3 (copie da janela de bolsas do site)") end
     if not (MerchantFrame and MerchantFrame:IsShown()) then return ns.say("abra um vendedor primeiro") end
     local queue, total = {}, 0
     for _, bag in ipairs(bagIds()) do
         for slot = 1, (safe(C_Container.GetContainerNumSlots, bag) or 0) do
             local info = safe(C_Container.GetContainerItemInfo, bag, slot)
-            if info and info.itemID and want[info.itemID] and not info.isLocked and not (db.protect or {})[info.itemID] then
+            local hit = info and info.itemID and (want[info.itemID] or at[bag * 100 + slot] == info.itemID)
+            if hit and not info.isLocked and not (db.protect or {})[info.itemID] then
                 local price = select(11, safe(C_Item.GetItemInfo, info.itemID)) or 0
                 if price > 0 then
                     queue[#queue + 1] = { bag, slot }
