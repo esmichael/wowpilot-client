@@ -40,6 +40,9 @@ local function collect()
     end
     if not d.spec and GAME ~= "retail" then d.spec = ns.talentSpec and ns.talentSpec() end
     d.lvl = UnitLevel("player")
+    -- nome como os outros veem (título/sobrenome do servidor, quando houver): o site mostra no topo
+    local pvp = UnitPVPName and UnitPVPName("player")
+    if type(pvp) == "string" and pvp ~= "" then d.full = pvp end
     local overall, equipped = GetAverageItemLevel()
     d.ilvl = math.floor((equipped or 0) * 10 + 0.5) / 10
     d.ilvlmax = math.floor((overall or 0) * 10 + 0.5) / 10
@@ -156,7 +159,10 @@ local function bankIds()
         end
     end
     for i = 6, 12 do ids[#ids + 1] = i end  -- bolsas de banco antigas, se existirem
-    return ids
+    -- sem repetir: no Classic o CharacterBankTab_1 é o mesmo 6 das bolsas antigas (o banco vinha em dobro)
+    local seen, out = {}, {}
+    for _, id in ipairs(ids) do if not seen[id] then seen[id] = true; out[#out + 1] = id end end
+    return out
 end
 
 local function collectCurrencies()
