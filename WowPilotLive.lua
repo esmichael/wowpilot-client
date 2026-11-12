@@ -615,6 +615,13 @@ function Live.checkMovement()
     end
 end
 
+-- jogador inimigo apareceu na tela (placa de nome): envio já (no intervalo normal, não no lento das placas); em
+-- combate o print espera o fim do combate, como sempre
+local function hostilePlayer(unit)
+    return unit and UnitIsPlayer and UnitIsPlayer(unit) and UnitCanAttack and UnitCanAttack("player", unit)
+end
+Live.hostilePlayer = hostilePlayer
+
 -- chamado pelo WowPilot.lua: chat novo, banco escaneado, inspeção de membro concluída, grupo
 function Live.onDataChanged(reason)
     if cfg then schedule(DEBOUNCE, SLOW_REASONS[reason]) end
@@ -625,7 +632,7 @@ end
 ------------------------------------------------------------
 local ev = CreateFrame("Frame")
 ev:RegisterEvent("PLAYER_LOGIN")
-ev:SetScript("OnEvent", function(_, event)
+ev:SetScript("OnEvent", function(_, event, arg1)
     if event == "PLAYER_LOGIN" then
         local db = ns.db()
         db.live = db.live or {}
@@ -662,7 +669,8 @@ ev:SetScript("OnEvent", function(_, event)
         end
     elseif TRIGGERS[event] then
         if TRIGGERS[event] == "simc" then simcDirty = true end
-        if cfg then schedule(DEBOUNCE, TRIGGERS[event] == "slow") end
+        local slow = TRIGGERS[event] == "slow" and not (event == "NAME_PLATE_UNIT_ADDED" and hostilePlayer(arg1))
+        if cfg then schedule(DEBOUNCE, slow) end
     end
 end)
 

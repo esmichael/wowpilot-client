@@ -884,6 +884,31 @@ local function visibleNpcs()
     return #out > 0 and out or nil
 end
 
+-- jogadores visíveis agora (placas de nome; sem você nem o grupo): [[nome, classe, nível, vida %, morto, reação,
+-- atacável], ...] (máx. 20). O jogo não dá a posição deles: só que estão perto (~40 jd) e na tela.
+local function visiblePlayers()
+    local NP = C_NamePlate
+    if not (NP and NP.GetNamePlates) then return nil end
+    local out = {}
+    for _, plate in ipairs(safe(NP.GetNamePlates) or {}) do
+        local unit = plate.namePlateUnitToken or (plate.UnitFrame and plate.UnitFrame.unit)
+        local guid = unit and UnitGUID(unit)
+        if guid and not isSecretValue(guid) and guid:sub(1, 7) == "Player-" and not UnitIsUnit(unit, "player") and not (UnitInParty and UnitInParty(unit))
+            and not (UnitInRaid and UnitInRaid(unit)) and #out < 20 then
+            local name = UnitName(unit)
+            if name and not isSecretValue(name) then
+                local hp, hpMax = num(UnitHealth(unit)), num(UnitHealthMax(unit))
+                out[#out + 1] = { name, select(2, UnitClass(unit)) or "", num(UnitLevel(unit)) or 0,
+                                  (hp and hpMax and hpMax > 0) and math.floor(hp / hpMax * 100 + 0.5) or -1,
+                                  UnitIsDeadOrGhost(unit) and 1 or 0, num(UnitReaction(unit, "player")) or 0,
+                                  UnitCanAttack and UnitCanAttack("player", unit) and 1 or 0 }
+            end
+        end
+    end
+    return #out > 0 and out or nil
+end
+ns.visiblePlayers = visiblePlayers
+
 -- texto de passo do RestedXP sem códigos de cor/ícone/link
 local function plainText(s)
     s = tostring(s or "")
@@ -1117,7 +1142,7 @@ function ns.collectForever()
         deaths = db and db.deaths and db.deaths[selfTarget()] or 0,
         faction = UnitFactionGroup and (UnitFactionGroup("player")) or nil,
         race = select(3, UnitRace("player")), classId = select(3, UnitClass("player")),
-        target = part(target), near = part(visibleNpcs), path = part(rxpPath), ex = part(extras),
+        target = part(target), near = part(visibleNpcs), nearP = part(visiblePlayers), path = part(rxpPath), ex = part(extras),
     }
     for _, k in ipairs({ "zone", "subzone", "bind" }) do
         if d[k] == "" or isSecretValue(d[k]) then d[k] = nil end

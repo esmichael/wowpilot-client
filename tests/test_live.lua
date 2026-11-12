@@ -415,4 +415,31 @@ T["forever: andar agenda envio (mesmo sem evento), parado não"] = function()
     assert(SCREENSHOTS == before + 2, "andou: envia")
 end
 
+T["forever: jogadores à vista (placas de nome) vão em nearP, com inimigo marcado"] = function()
+    _G.C_Map = { GetBestMapForUnit = function() return 1413 end,
+                 GetPlayerMapPosition = function(_, u) return { GetXY = function() return 0.4, 0.3 end } end }
+    _G.UnitXP = function() return 100 end
+    _G.UnitXPMax = function() return 400 end
+    _G.GetXPExhaustion = function() return nil end
+    _G.UnitRace = function() return "Orc", "Orc", 2 end
+    _G.UnitFactionGroup = function() return "Horde", "Horda" end
+    _G.C_NamePlate = { GetNamePlates = function() return { { namePlateUnitToken = "nameplate1" }, { namePlateUnitToken = "nameplate2" } } end }
+    local guids = { nameplate1 = "Player-1-0000AAAA", nameplate2 = "Creature-0-1-2-3-3246-0000" }
+    local oldGUID, oldName = _G.UnitGUID, _G.UnitName
+    _G.UnitGUID = function(u) return guids[u] or (oldGUID and oldGUID(u)) end
+    _G.UnitName = function(u) if u == "nameplate1" then return "Inimigo" end return oldName(u) end
+    _G.UnitCanAttack = function(_, u) return u == "nameplate1" end
+    _G.UnitClass = function(u) if u == "nameplate1" then return "Ladino", "ROGUE" end return "Xamã", "SHAMAN" end
+    _G.UnitReaction = function(u) return u == "nameplate1" and 2 or 4 end
+    _G.UnitHealth = function() return 50 end
+    _G.UnitHealthMax = function() return 100 end
+    _G.UnitIsDeadOrGhost = function() return false end
+    _G.UnitIsDead = function() return false end
+    boot()
+    local js = NS.Live.fullPayload(true, true)
+    assert(js:find('"nearP":%[%["Inimigo","ROGUE",%d+,50,0,2,1%]%]'), "jogadores: " .. js)
+    assert(NS.Live.hostilePlayer("nameplate1") and not NS.Live.hostilePlayer("nameplate2"), "inimigo dispara envio já")
+    _G.UnitGUID, _G.UnitName = oldGUID, oldName
+end
+
 return T
