@@ -274,6 +274,22 @@ local function bags()
     return out
 end
 
+-- formato das bolsas (para o site desenhar igual ao jogo): tamanho de cada bolsa e, na ordem da lista `bags`,
+-- a posição de cada item como bolsa*100 + espaço
+local function bagLayout()
+    local sizes, pos = {}, {}
+    for _, bag in ipairs(ns.bagIds()) do
+        local n = ns.safe(C_Container.GetContainerNumSlots, bag) or 0
+        if n > 0 then sizes[#sizes + 1] = { bag, n } end
+        for slot = 1, n do
+            local info = ns.safe(C_Container.GetContainerItemInfo, bag, slot)
+            local p = info and info.hyperlink and ns.parseLink(info.hyperlink)
+            if p and p.id then pos[#pos + 1] = bag * 100 + slot end
+        end
+    end
+    return { sizes = sizes, pos = pos }
+end
+
 local function bank(preview)
     local db = ns.db()
     local b = db.bank and db.bank[ns.selfTarget()]
@@ -396,7 +412,7 @@ function Live.fullPayload(preview, forceSimc)
     local s = part(summary) or {}
     local data = {
         v = 1, t = time(), seq = cfg.seq or 0, s = s,
-        vault = part(vault), cur = part(currencies), players = changed("players", part(players)), bags = part(bags),
+        vault = part(vault), cur = part(currencies), players = changed("players", part(players)), bags = part(bags), bagl = part(bagLayout),
         bank = part(bank, preview), chat = part(chat, preview), simc = part(simc, preview, forceSimc),
         groups = part(groups, preview), mp = part(mythicPlus), vd = part(ns.collectVaultDetail),
     }
