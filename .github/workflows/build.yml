@@ -34,7 +34,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory WowPilot | Out-Null
-          Copy-Item WowPilot.toc, WowPilot.lua, WowPilotLive.lua WowPilot/
+          Copy-Item WowPilot.toc, WowPilot.lua, WowPilotLive.lua, WowPilotPulse.lua WowPilot/
           Compress-Archive WowPilot WowPilot.zip
       - name: Versão da tag = .toc = cliente
         if: startsWith(github.ref, 'refs/tags/v')

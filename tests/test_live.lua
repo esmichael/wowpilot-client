@@ -18,7 +18,9 @@ end
 
 T["live: snapshot completo tem resumo, Vault, moedas, equipamento e bolsas"] = function()
     boot()
-    local js = full(true)
+    -- equipamento (players) e nomes de itens só vão quando mudam (ou a cada 5 min): o envio do login já os levou,
+    -- então o forçado (/wpilot agora) é que os traz de novo
+    local js = NS.Live.fullPayload(true, true)
     assert(js:find('"char":"Fulano%-Reinoteste"') and js:find('"spec":"Restauração"'), js)
     assert(js:find('"vault":%[%[1,1,1,1,7,276,276%],%[3,1,2,2,15,276,0%]%]'), "vault: " .. js)
     assert(js:find('"vd":{"claim":0,"prog":{"1":%[%[7,1%]%]},"raid":%[%["Chefe A",14,1%],%["Chefe B",15,2%]%]}'), "vd: " .. js)
@@ -120,12 +122,12 @@ T["live: rajada de eventos vira uma captura só"] = function()
     assert(SCREENSHOTS - before <= 1, "debounce/throttle: " .. (SCREENSHOTS - before))
 end
 
-T["live: páginas de ~18 KB (64 cores); comprime quando a API existe"] = function()
+T["live: páginas de ~7 KB (40 linhas); comprime quando a API existe"] = function()
     boot()
     run_timers()
     local codes, raw, sent = NS.Live.frames(3, string.rep("x", 40000))
-    assert(#codes == 3 and raw == 40000 and sent == 40000, "40000 B sem compressão = 3 páginas: " .. #codes)
-    assert(codes[1].cols == 255 and codes[1].rows == 100, "página cheia: " .. codes[1].cols .. "x" .. codes[1].rows)
+    assert(#codes == 6 and raw == 40000 and sent == 40000, "40000 B sem compressão = 6 páginas: " .. #codes)
+    assert(codes[1].cols == 255 and codes[1].rows == 40, "página cheia: " .. codes[1].cols .. "x" .. codes[1].rows)
     _G.C_EncodingUtil = { CompressString = function(s) return s:sub(1, 100) end }
     codes, raw, sent = NS.Live.frames(3, string.rep("x", 40000))
     assert(#codes == 1 and sent == 100, "comprimido cabe numa página")
@@ -173,7 +175,7 @@ T["live: equipamento do grupo inspecionado entra no snapshot"] = function()
     _G.GetSpecializationInfoByID = function() return 73, "Proteção" end
     _G.C_PaperDollInfo = { GetInspectItemLevel = function() return 281.5 end }
     boot()
-    local js = full(true)
+    local js = NS.Live.fullPayload(true, true)   -- players só quando muda: o login já levou
     assert(js:find('"inspectStatus":"ok"') and js:find('"spec":"Proteção"') and js:find('"name":"Tank%-Reinoteste"'), js)
 end
 
@@ -287,7 +289,7 @@ T["forever: snapshot traz jogo, spec pelos talentos, XP, quests, profissões e n
     assert(js:find('"quests":%[%[33,"Lobos na mata",5,0,%[%["Lobo: 4/8",0%]%]%]%]'), "quests: " .. js)
     assert(js:find('"skills":%[%["Mineração",50,75%]%]'), "profissões: " .. js)
     assert(js:find('"talents":%[%["Elemental",0%],%["Aperfeiçoamento",11%],%["Restauração",3%]%]'), js)
-    assert(js:find('"names":{"%d+":%[".-",%d+,%d+,%d+,'), "detalhes dos itens: " .. js)
+    assert(forced:find('"names":{"%d+":%[".-",%d+,%d+,%d+,'), "detalhes dos itens: " .. forced)   -- só quando mudam
 end
 
 T["live: retail não manda os campos do Forever"] = function()
@@ -332,7 +334,7 @@ T["forever: ficha do jogador (vida, recurso, mana do druida em forma, atributos)
     boot()
     local js = NS.Live.fullPayload(true, true)
     assert(js:find('"me":{"armor":420,"hp":%[900,1000%],"mana":%[300,500%],"pw":%[60,100,"ENERGY"%],"st":%[40,55,60,25,30%]}'), "ficha: " .. js)
-    assert(js:find('"party":%[%["Tank","SHAMAN",40,30,25,33,"RAGE"%],%["Longe","SHAMAN",40,30,null,null,"RAGE"%]%]'), "grupo: " .. js)
+    assert(js:find('"party":%[%["Tank","SHAMAN",40,30,25,33,"RAGE",null%],%["Longe","SHAMAN",40,30,null,null,"RAGE",null%]%]'), "grupo: " .. js)   -- último: subgrupo (raide)
     _G.UnitPowerType = function() return 0, "MANA" end                                  -- mana como recurso: sem "mana" à parte
     _G.UnitIsDeadOrGhost = function(u) return u == "player" end
     js = NS.Live.fullPayload(true, true)
