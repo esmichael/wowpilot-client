@@ -57,7 +57,7 @@ local function sample()
     if UnitPosition then a, b, c = ns.safe(UnitPosition, "player") end
     a, b, c = num(a), num(b), num(c)
     local f = GetPlayerFacing and num(ns.safe(GetPlayerFacing))
-    local hp, hpMax = num(UnitHealth and UnitHealth("player")), num(UnitHealthMax and UnitHealthMax("player"))
+    -- vida: protegida pelo jogo (secret value) no Forever; o byte segue no pacote, sempre 255 (= sem dado)
     local flags = 0
     if UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") then flags = flags + 1 end
     if UnitIsGhost and UnitIsGhost("player") then flags = flags + 2 end
@@ -75,7 +75,7 @@ local function sample()
         .. u16(posOk and ui or 0) .. u16(posOk and x * 65535 or 0) .. u16(posOk and y * 65535 or 0)
         .. s32((a or 0) * 10) .. s32((b or 0) * 10) .. s32((c or 0) * 10)
         .. u8(f and f / (2 * math.pi) * 256 or 0)
-        .. u8(hp and hpMax and hpMax > 0 and math.floor(hp / hpMax * 100 + 0.5) or 255)
+        .. u8(255)
         .. u8(flags) .. u8(num(UnitLevel("player")) or 0) .. u16(deaths)
 end
 

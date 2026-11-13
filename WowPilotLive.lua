@@ -726,6 +726,7 @@ function Live.command(arg)
         print("  /wpilot pulso on|off   faixa no canto que leva a posição ao site a cada segundo, sem print")
         print("  /wpilot ajustes        configurações sugeridas do jogo (placas de nome) · /wpilot ajustes aplicar")
         print("  /wpilot vender IDs     com o vendedor aberto, vende esses itens (copie a lista na janela de bolsas do site)")
+        print("  /wpilot api            lista o que o jogo oferece para addons (e o que vem protegido) · depois /reload")
         print("  /wpilot proteger IDs   itens que nunca vão ao vendedor (recompra se vender na mão) · /wpilot proteger nada limpa")
     end
 end

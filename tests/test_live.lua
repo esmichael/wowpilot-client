@@ -5,6 +5,18 @@ local function full(preview)
     return NS.Live.fullPayload(preview)
 end
 
+T["/wpilot api: lista funções e marca o que volta protegido"] = function()
+    boot()
+    local oldH = _G.UnitHealth
+    _G.issecretvalue = function(v) return v == 602 end
+    _G.UnitHealth = function() return 602 end
+    SlashCmdList.WOWPILOT("api")
+    local a = WowPilotDB.api
+    assert(a and a.probes["UnitHealth(player)"] == "secret", "vida protegida: " .. tostring(a and a.probes["UnitHealth(player)"]))
+    assert(a.globals:find("UnitHealth"), "lista as globais")
+    _G.issecretvalue, _G.UnitHealth = nil, oldH
+end
+
 T["/wpilot vender: só com vendedor aberto, vende os itens dos IDs pedidos"] = function()
     boot()
     local sold, said = {}, {}
@@ -319,8 +331,8 @@ T["forever: snapshot traz jogo, spec pelos talentos, XP, quests, profissões e n
     assert(js:find('"played":%[50%d%d,3%d%d%]'), "tempo jogado: " .. js)
     assert(js:find('"dur":%[25,63%]') and js:find('"resting":1') and js:find('"deaths":1'), "durabilidade/descanso/mortes: " .. js)
     assert(js:find('"game":"forever"'), "jogo: " .. js)
-    assert(js:find('"near":%[%[3246,90,83,0,4,"normal",2%],%[3255,90,83,0,4,"normal",1%]%]'), "visíveis: " .. js)
-    assert(js:find('"target":{"class":"normal","dead":0,"hp":25,"id":3246,"kind":"Creature","level":90,"name":"Pinote Fugaz","reaction":4}'), "alvo: " .. js)
+    assert(js:find('"near":%[%[3246,90,%-1,0,4,"normal",2%],%[3255,90,%-1,0,4,"normal",1%]%]'), "visíveis: " .. js)
+    assert(js:find('"target":{"class":"normal","dead":0,"id":3246,"kind":"Creature","level":90,"name":"Pinote Fugaz","reaction":4}'), "alvo: " .. js)
     assert(not js:find('"done"'), "lista de quests já enviada no login não repete")
     local forced = NS.Live.fullPayload(true, true)  -- /wpilot agora manda tudo
     assert(forced:find('"done":%[10,20,30%]') and js:find('"faction":"Horde"') and js:find('"race":2'), "quests feitas/facção: " .. forced)
@@ -375,8 +387,8 @@ T["forever: ficha do jogador (vida, recurso, mana do druida em forma, atributos)
     _G.UnitIsDeadOrGhost = function() return false end
     boot()
     local js = NS.Live.fullPayload(true, true)
-    assert(js:find('"me":{"armor":420,"hp":%[900,1000%],"mana":%[300,500%],"pw":%[60,100,"ENERGY"%],"st":%[40,55,60,25,30%]}'), "ficha: " .. js)
-    assert(js:find('"party":%[%["Tank","SHAMAN",40,30,25,33,"RAGE",null%],%["Longe","SHAMAN",40,30,null,null,"RAGE",null%]%]'), "grupo: " .. js)   -- último: subgrupo (raide)
+    assert(js:find('"me":{"armor":420,"st":%[40,55,60,25,30%]}'), "ficha (vida/recurso protegidos: não vão): " .. js)
+    assert(js:find('"party":%[%["Tank","SHAMAN",40,30,null,null,"RAGE",null%],%["Longe","SHAMAN",40,30,null,null,"RAGE",null%]%]'), "grupo: " .. js)   -- último: subgrupo (raide)
     _G.UnitPowerType = function() return 0, "MANA" end                                  -- mana como recurso: sem "mana" à parte
     _G.UnitIsDeadOrGhost = function(u) return u == "player" end
     js = NS.Live.fullPayload(true, true)
@@ -479,7 +491,7 @@ T["forever: jogadores à vista (placas de nome) vão em nearP, com inimigo marca
     _G.UnitIsDead = function() return false end
     boot()
     local js = NS.Live.fullPayload(true, true)
-    assert(js:find('"nearP":%[%["Inimigo","ROGUE",%d+,50,0,2,1,"[^"]*","[^"]*","[^"]*"%]%]'), "jogadores: " .. js)
+    assert(js:find('"nearP":%[%["Inimigo","ROGUE",%d+,%-1,0,2,1,"[^"]*","[^"]*","[^"]*"%]%]'), "jogadores: " .. js)
     assert(NS.Live.hostilePlayer("nameplate1") and not NS.Live.hostilePlayer("nameplate2"), "inimigo dispara envio já")
     _G.UnitGUID, _G.UnitName = oldGUID, oldName
 end

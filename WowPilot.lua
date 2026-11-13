@@ -876,8 +876,7 @@ local function target()
                 dead = UnitIsDead("target") and 1 or 0, reaction = num(UnitReaction("target", "player")),
                 class = UnitClassification and UnitClassification("target") or nil }
     if isSecretValue(t.name) then t.name = nil end
-    local hp, hpMax = num(UnitHealth("target")), num(UnitHealthMax("target"))
-    if hp and hpMax and hpMax > 0 then t.hp = math.floor(hp / hpMax * 100 + 0.5) end
+    -- vida do alvo: protegida pelo jogo (secret value): não é lida
     if kind == "Player" then   -- jogador: classe, raça, reino e guilda (para a ficha e o link de estatísticas)
         t.id, t.class = nil, select(2, UnitClass("target"))
         local _, realm = UnitName("target")
@@ -905,12 +904,11 @@ local function visibleNpcs()
             local kind, _, _, _, _, id = strsplit("-", guid)
             id = tonumber(id)
             if (kind == "Creature" or kind == "Vehicle") and id then
-                local hp, hpMax = num(UnitHealth(unit)), num(UnitHealthMax(unit))
                 local key = id .. (UnitIsDead(unit) and "d" or "")
                 if seen[key] then
                     seen[key][7] = seen[key][7] + 1
                 elseif #out < 40 then
-                    local row = { id, num(UnitLevel(unit)) or 0, (hp and hpMax and hpMax > 0) and math.floor(hp / hpMax * 100 + 0.5) or -1,
+                    local row = { id, num(UnitLevel(unit)) or 0, -1,   -- vida: protegida pelo jogo (-1 = sem dado)
                                   UnitIsDead(unit) and 1 or 0, num(UnitReaction(unit, "player")) or 0,
                                   (UnitClassification and UnitClassification(unit)) or "", 1 }
                     seen[key] = row
@@ -935,9 +933,8 @@ local function visiblePlayers()
             and not (UnitInRaid and UnitInRaid(unit)) and #out < 20 then
             local name = UnitName(unit)
             if name and not isSecretValue(name) then
-                local hp, hpMax = num(UnitHealth(unit)), num(UnitHealthMax(unit))
                 out[#out + 1] = { name, select(2, UnitClass(unit)) or "", num(UnitLevel(unit)) or 0,
-                                  (hp and hpMax and hpMax > 0) and math.floor(hp / hpMax * 100 + 0.5) or -1,
+                                  -1,   -- vida: protegida pelo jogo
                                   UnitIsDeadOrGhost(unit) and 1 or 0, num(UnitReaction(unit, "player")) or 0,
                                   UnitCanAttack and UnitCanAttack("player", unit) and 1 or 0 }
                 local _, realm = UnitName(unit)
@@ -1047,17 +1044,7 @@ end
 -- ficha do jogador: vida, recurso da classe (e a mana do druida em forma), atributos e armadura efetivos
 local function sheet()
     local me = {}
-    local hp, hpMax = num(UnitHealth and UnitHealth("player")), num(UnitHealthMax and UnitHealthMax("player"))
-    if hp and hpMax then me.hp = { hp, hpMax } end
-    if UnitPowerType and UnitPower and UnitPowerMax then
-        local ptype, token = UnitPowerType("player")
-        local pw, pwMax = num(UnitPower("player")), num(UnitPowerMax("player"))
-        if pw and pwMax then me.pw = { pw, pwMax, type(token) == "string" and token or nil } end
-        if num(ptype) ~= 0 then   -- recurso atual não é mana: mostra a mana se a classe tiver (druida em forma)
-            local m, mMax = num(UnitPower("player", 0)), num(UnitPowerMax("player", 0))
-            if m and mMax and mMax > 0 then me.mana = { m, mMax } end
-        end
-    end
+    -- vida e recurso (mana, raiva, energia): protegidos pelo jogo no Forever (secret value), não são lidos
     if UnitStat then
         local st = {}
         for i = 1, 5 do   -- força, agilidade, vigor, intelecto, espírito (2º retorno = valor efetivo)
@@ -1144,8 +1131,7 @@ local function extras()
                 if p and p.GetXY then x, y = p:GetXY() end
                 local _, cls = UnitClass(u)
                 -- vida e recurso em % (null se o jogo não informa, ex.: longe demais)
-                local hpP = pct(UnitHealth and UnitHealth(u), UnitHealthMax and UnitHealthMax(u))
-                local pwP = UnitPower and pct(UnitPower(u), UnitPowerMax(u))
+                local hpP, pwP = nil, nil   -- vida/recurso do grupo: protegidos pelo jogo
                 local token
                 if UnitPowerType then token = select(2, UnitPowerType(u)) end
                 local sub
@@ -1398,11 +1384,76 @@ if C_Container and C_Container.UseContainerItem and hooksecurefunc then
     hooksecurefunc(C_Container, "UseContainerItem", guardSale)
 end
 
+-- /wpilot api: o que este cliente oferece para addons. Lista todas as funções globais e dos C_* e testa uma série de
+-- consultas comuns (vida, recurso, atributos, posição, alvo…), anotando o que volta protegido (secret value). Fica em
+-- WowPilotDB.api (SavedVariables): /reload grava no disco (WTF/Account/…/SavedVariables/WowPilot.lua).
+local PROBES = {
+    { "UnitHealth", "player" }, { "UnitHealthMax", "player" }, { "UnitHealthPercent", "player" }, { "UnitPower", "player" },
+    { "UnitPowerMax", "player" }, { "UnitPowerType", "player" }, { "UnitHealth", "target" }, { "UnitHealthMax", "target" },
+    { "UnitLevel", "player" }, { "UnitLevel", "target" }, { "UnitName", "target" }, { "UnitXP", "player" }, { "UnitXPMax", "player" },
+    { "GetXPExhaustion" }, { "GetMoney" }, { "UnitStat", "player", 1 }, { "UnitStat", "player", 3 }, { "UnitArmor", "player" },
+    { "UnitAttackPower", "player" }, { "UnitRangedAttackPower", "player" }, { "UnitAttackSpeed", "player" }, { "UnitDamage", "player" },
+    { "GetCritChance" }, { "GetRangedCritChance" }, { "GetSpellCritChance", 2 }, { "GetSpellBonusDamage", 2 }, { "GetSpellBonusHealing" },
+    { "GetDodgeChance" }, { "GetParryChance" }, { "GetBlockChance" }, { "GetManaRegen" }, { "GetHitModifier" }, { "GetCombatRating", 1 },
+    { "UnitResistance", "player", 2 }, { "UnitPosition", "player" }, { "GetPlayerFacing" }, { "UnitGUID", "target" },
+    { "UnitClassification", "target" }, { "UnitReaction", "target", "player" }, { "UnitIsDeadOrGhost", "player" },
+    { "UnitAffectingCombat", "player" }, { "GetZoneText" }, { "GetSubZoneText" }, { "GetMinimapZoneText" }, { "UnitAura", "player", 1 },
+    { "UnitBuff", "player", 1 }, { "UnitDebuff", "target", 1 }, { "UnitCastingInfo", "target" }, { "UnitThreatSituation", "player", "target" },
+    { "GetNumGroupMembers" }, { "GetInventoryItemDurability", 5 }, { "GetRestState" }, { "IsResting" }, { "GetTime" },
+    { "GetNetStats" }, { "GetFramerate" }, { "UnitSpeed", "player" }, { "GetUnitSpeed", "player" }, { "IsMounted" },
+    { "UnitOnTaxi", "player" }, { "GetComboPoints", "player", "target" }, { "GetShapeshiftForm" }, { "GetNumSkillLines" },
+}
+local function apiDump()
+    local unpack = unpack or table.unpack
+    local function kind(v)
+        if isSecret(v) then return "secret" end
+        local t = type(v)
+        if t == "number" or t == "boolean" then return t .. ":" .. tostring(v) end
+        if t == "string" then return "string:" .. v:sub(1, 40) end
+        return t
+    end
+    local probes = {}
+    for _, p in ipairs(PROBES) do
+        local fn = _G[p[1]]
+        local key = p[1] .. "(" .. table.concat({ select(2, unpack(p)) }, ",") .. ")"
+        if type(fn) ~= "function" then probes[key] = "não existe"
+        else
+            local res = { pcall(fn, select(2, unpack(p))) }
+            if not res[1] then probes[key] = "erro: " .. tostring(res[2]):sub(1, 80)
+            else
+                local out = {}
+                for i = 2, math.min(#res, 8) do out[#out + 1] = kind(res[i]) end
+                probes[key] = #out > 0 and table.concat(out, " | ") or "nada"
+            end
+        end
+    end
+    local funcs, spaces = {}, {}
+    for k, v in pairs(_G) do
+        if type(k) == "string" then
+            if type(v) == "function" then funcs[#funcs + 1] = k
+            elseif type(v) == "table" and k:match("^C_") then
+                local list = {}
+                for f, fv in pairs(v) do if type(fv) == "function" then list[#list + 1] = f end end
+                table.sort(list)
+                spaces[k] = table.concat(list, ",")
+            end
+        end
+    end
+    table.sort(funcs)
+    db.api = { t = time(), build = select(4, GetBuildInfo()), version = GetBuildInfo(), probes = probes,
+               globals = table.concat(funcs, ","), namespaces = spaces }
+    local nSpaces = 0
+    for _ in pairs(spaces) do nSpaces = nSpaces + 1 end
+    ns.say(string.format("API: %d funções globais, %d namespaces C_*, %d consultas testadas. Dê /reload para gravar.", #funcs, nSpaces, #PROBES))
+end
+ns.apiDump = apiDump
+
 SlashCmdList.WOWPILOT = function(input)
     local sub, rest = (input or ""):match("^%s*(%S*)%s*(.-)%s*$")
     if sub and sub:lower() == "pulso" and ns.Pulse then return ns.Pulse.command(rest:lower()) end
     if sub and sub:lower() == "ajustes" then return tweaks(rest:lower()) end
     if sub and sub:lower() == "vender" then return sell(rest) end
+    if sub and sub:lower() == "api" then return apiDump() end
     if sub and sub:lower() == "proteger" then return protect(rest:lower() == "nada" and "" or rest, rest:lower() == "nada") end
     ns.Live.command(input or "")
 end
