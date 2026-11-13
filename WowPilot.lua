@@ -1044,7 +1044,21 @@ end
 -- ficha do jogador: vida, recurso da classe (e a mana do druida em forma), atributos e armadura efetivos
 local function sheet()
     local me = {}
-    -- vida e recurso (mana, raiva, energia): protegidos pelo jogo no Forever (secret value), não são lidos
+    -- vida e recurso atuais: protegidos pelo jogo no Forever (secret value). Os máximos e os atributos de combate
+    -- não são (conferido com /wpilot api): vão como me.max e me.cb
+    local function n(f, ...) if type(f) ~= "function" then return nil end; local ok, v = pcall(f, ...); return ok and num(v) or nil end
+    local hpMax, pwMax = n(UnitHealthMax, "player"), n(UnitPowerMax, "player")
+    local ptok = UnitPowerType and select(2, UnitPowerType("player"))
+    if hpMax or pwMax then me.max = { hpMax, pwMax, type(ptok) == "string" and ptok or nil } end
+    local cb = {}
+    if UnitAttackPower then local ok, base, pos, neg = pcall(UnitAttackPower, "player"); if ok and num(base) then cb.ap = base + (num(pos) or 0) + (num(neg) or 0) end end
+    if UnitDamage then local ok, lo, hi = pcall(UnitDamage, "player"); if ok and num(lo) and num(hi) then cb.dmg = { math.floor(lo + 0.5), math.floor(hi + 0.5) } end end
+    if UnitAttackSpeed then cb.spd = n(UnitAttackSpeed, "player") end
+    cb.crit, cb.scrit = n(GetCritChance), n(GetSpellCritChance, 2)
+    cb.dodge, cb.parry, cb.block, cb.hit = n(GetDodgeChance), n(GetParryChance), n(GetBlockChance), n(GetHitModifier)
+    cb.sdmg, cb.sheal, cb.mp5 = n(GetSpellBonusDamage, 2), n(GetSpellBonusHealing), n(GetManaRegen)
+    for k, v in pairs(cb) do if type(v) == "number" then cb[k] = math.floor(v * 100 + 0.5) / 100 end end
+    if next(cb) then me.cb = cb end
     if UnitStat then
         local st = {}
         for i = 1, 5 do   -- força, agilidade, vigor, intelecto, espírito (2º retorno = valor efetivo)

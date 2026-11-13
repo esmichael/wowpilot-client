@@ -46,7 +46,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$ClientVersion = '1.7.1'
+$ClientVersion = '1.8.0'
 $ConfigFile = Join-Path $ConfigDir 'config.json'
 $PendingDir = Join-Path $ConfigDir 'pendentes'
 New-Item -ItemType Directory -Force -Path $ConfigDir, $PendingDir | Out-Null

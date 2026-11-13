@@ -387,7 +387,7 @@ T["forever: ficha do jogador (vida, recurso, mana do druida em forma, atributos)
     _G.UnitIsDeadOrGhost = function() return false end
     boot()
     local js = NS.Live.fullPayload(true, true)
-    assert(js:find('"me":{"armor":420,"st":%[40,55,60,25,30%]}'), "ficha (vida/recurso protegidos: não vão): " .. js)
+    assert(js:find('"me":{"armor":420,"max":%[1000,100,"ENERGY"%],"st":%[40,55,60,25,30%]}'), "ficha (só os máximos; vida/recurso atuais protegidos): " .. js)
     assert(js:find('"party":%[%["Tank","SHAMAN",40,30,null,null,"RAGE",null%],%["Longe","SHAMAN",40,30,null,null,"RAGE",null%]%]'), "grupo: " .. js)   -- último: subgrupo (raide)
     _G.UnitPowerType = function() return 0, "MANA" end                                  -- mana como recurso: sem "mana" à parte
     _G.UnitIsDeadOrGhost = function(u) return u == "player" end
