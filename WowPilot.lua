@@ -782,6 +782,26 @@ function ns.itemDetails()
     for _, it in ipairs(b and b.items or {}) do add(it.link) end
     local statsFn = (C_Item and C_Item.GetItemStats) or GetItemStats
     local out = {}
+    -- dica do jogo (as linhas que você vê ao passar o mouse): "Use: Restaura 243 pontos de vida…", durabilidade etc.
+    local tip = ns.scanTip
+    if not tip and CreateFrame then
+        tip = CreateFrame("GameTooltip", "WowPilotScanTip", nil, "GameTooltipTemplate")
+        ns.scanTip = tip
+    end
+    local function lines(link)
+        if not (tip and tip.SetHyperlink) then return nil end
+        tip:SetOwner(WorldFrame, "ANCHOR_NONE")
+        tip:ClearLines()
+        if not pcall(tip.SetHyperlink, tip, link) then return nil end
+        local t = {}
+        for i = 2, math.min(tip:NumLines() or 0, 30) do
+            local l, r = _G["WowPilotScanTipTextLeft" .. i], _G["WowPilotScanTipTextRight" .. i]
+            local lt, rt = l and l:GetText(), r and r:IsShown() and r:GetText()
+            if lt and lt ~= "" and not isSecret(lt) then t[#t + 1] = (rt and rt ~= "" and not isSecret(rt)) and (lt .. "\t" .. rt) or lt end
+        end
+        tip:Hide()
+        return #t > 0 and t or nil
+    end
     for id, link in pairs(links) do
         local name, _, quality, ilvl, minLevel, _, _, _, equipLoc, _, sell, classID, subclassID = safe(C_Item.GetItemInfo, link)
         if name then
@@ -790,6 +810,8 @@ function ns.itemDetails()
                 local st = safe(statsFn, link)
                 if st and next(st) then e[9] = st end
             end
+            local ln = lines(link)
+            if ln then e[9] = e[9] or false; e[10] = ln end
             out[tostring(id)] = e
         end
     end
