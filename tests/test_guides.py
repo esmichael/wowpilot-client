@@ -1,4 +1,5 @@
-"""WowPilotGuides.lua: sem o RXP não faz nada; com ele, registra o guia da pesca com a missão 6607 e os quatro peixes."""
+"""WowPilotGuides.lua: sem o RXP não faz nada; com ele, registra o guia da pesca (6607 e os quatro peixes)
+e os dois da Angra do Butim (as missões do Kebok, do Drizzlik e do Cranque)."""
 import re
 from pathlib import Path
 
@@ -20,7 +21,7 @@ def run(with_rxp):
 def main():
     assert run(False) == [], "sem RXP não registra nada"
     g = run(True)
-    assert len(g) == 1, g
+    assert len(g) == 3, g
     text = g[0]
     for tag in ("#classic", "#forever", "#name ", "#group +WowPilot", ".accept 6607", ".turnin 6607", ".train 18248"):
         assert tag in text, tag
@@ -31,6 +32,13 @@ def main():
     for x, y in re.findall(r"\.goto [^,]+,([\d.]+),([\d.]+)", text):
         assert 0 < float(x) < 100 and 0 < float(y) < 100, (x, y)
     assert all(l.startswith(("step", "    ", "#", "<<")) for l in text.strip().splitlines() if l.strip()), "linha fora de um passo"
+    butim = g[1] + g[2]
+    for q in (189, 213, 605, 575, 577, 628, 209, 600):
+        assert f".accept {q}" in butim and f".turnin {q}" in butim and f".complete {q},1" in butim, q
+    assert "#next " + re.search(r"#name (.+)", g[2])[1] in g[1]
+    for t in g[1:]:
+        assert set(re.findall(r"\.goto ([^,]+),", t)) == {"Stranglethorn Vale"}
+        assert all(l.startswith(("step", "    ", "#", "<<")) for l in t.strip().splitlines() if l.strip())
     print("guides OK")
 
 

@@ -90,3 +90,204 @@ step
     .train 18248 >>Fale de novo com o |cRXP_FRIENDLY_Nat Pagle|r e aprenda |cRXP_WARN_Pesca Artesã|r (o limite sobe para 300)
     .target Nat Pagle
 ]])
+
+-- Angra do Butim: as missões da Angra que o guia do RXP deixou para trás (Kebok, Drizzlik e Cranque Mirrabolha). Cada
+-- uma só destrava a própria continuação: Orelhas → Presas Rachacrânio, Oferta e demanda → Algumas partes faltando →
+-- Excelsior, Estilhaços azuis → Mineração da Empreendimentos. Pontos dos monstros pelo Questie (Selva do Espinhaço).
+R.RegisterGuide([[
+#classic
+#forever
+<< Horde
+#group +WowPilot
+#name Angra do Butim: missões que faltaram (36-38)
+#displayname Angra do Butim: missões que faltaram (36-38)
+#next Angra do Butim: missões que faltaram (40-42)
+
+step
+    #completewith next
+    .fly Booty Bay >> Voe de |cRXP_FRIENDLY_Grom'gol|r até a |cRXP_FRIENDLY_Angra do Butim|r
+step
+    .goto Stranglethorn Vale,27.0,77.1
+    >>Fale com |cRXP_FRIENDLY_Kebok|r
+    .accept 189 >>Aceite "Orelhas de Sanguescalpo"
+    .accept 213 >>Aceite "Abordagem hostil"
+    .target Kebok
+step
+    .goto Stranglethorn Vale,27.1,77.2
+    >>Fale com |cRXP_FRIENDLY_Cranque Mirrabolha|r
+    .accept 605 >>Aceite "Estilhaços azuis cantantes"
+    .target Crank Fizzlebub
+step
+    .goto Stranglethorn Vale,28.3,77.6
+    >>Fale com |cRXP_FRIENDLY_Drizzlik|r
+    .accept 575 >>Aceite "Oferta e demanda"
+    .target Drizzlik
+step
+    #completewith next
+    .fly Grom'gol >> Volte voando para |cRXP_FRIENDLY_Grom'gol|r
+step
+    #completewith Cristais
+    >>Mate os |cRXP_ENEMY_basiliscos|r que encontrar no caminho: os |cRXP_PICK_Estilhaços de Cristal Cantante|r caem deles
+    .complete 605,1
+    .mob Crystal Spine Basilisk
+    .mob Stone Maw Basilisk
+step
+    .goto Stranglethorn Vale,24.4,11.2,30,0
+    .goto Stranglethorn Vale,23.1,10.7,30,0
+    .goto Stranglethorn Vale,25.6,10.6,30,0
+    .goto Stranglethorn Vale,24.4,11.2
+    >>Mate os |cRXP_ENEMY_trolls Sanguescalpo|r na costa oeste e pegue as |cRXP_LOOT_Orelhas|r (junto com as Cabeças e os Colares, se ainda faltarem)
+    .complete 189,1
+    .mob Bloodscalp Scout
+    .mob Bloodscalp Hunter
+    .mob Bloodscalp Berserker
+    .mob Bloodscalp Headhunter
+    .mob Bloodscalp Witch Doctor
+step
+    .goto Stranglethorn Vale,24.6,18.2,30,0
+    .goto Stranglethorn Vale,27.1,18.6,30,0
+    .goto Stranglethorn Vale,24.6,18.2
+    >>Desça um pouco para o sul e mate os |cRXP_ENEMY_Basiliscos da Serra dos Cristais|r
+    .complete 605,1
+    .mob Crystal Spine Basilisk
+step
+    .goto Stranglethorn Vale,33.7,6.4,30,0
+    .goto Stranglethorn Vale,35.7,6.8,30,0
+    .goto Stranglethorn Vale,33.7,6.4
+    >>Se ainda faltarem estilhaços, mate os |cRXP_ENEMY_Basiliscos Petragorja|r no extremo norte
+    .complete 605,1
+    .mob Stone Maw Basilisk
+step
+    .goto Stranglethorn Vale,34.6,10.5,30,0
+    .goto Stranglethorn Vale,36.9,10.5,30,0
+    .goto Stranglethorn Vale,39.9,11.5,30,0
+    .goto Stranglethorn Vale,34.6,10.5
+    >>Mate os |cRXP_ENEMY_Crocoliscos do Rio|r e pegue as |cRXP_LOOT_Peles de Crocolisco Grande do Rio|r
+    .complete 575,1
+    .mob River Crocolisk
+step
+    .goto Stranglethorn Vale,43.0,19.1,30,0
+    .goto Stranglethorn Vale,44.2,18.6,30,0
+    .goto Stranglethorn Vale,45.4,20.8,30,0
+    .goto Stranglethorn Vale,43.0,19.1
+    >>Mate os |cRXP_ENEMY_Geólogos da Empreendimentos S.A.|r e pegue os |cRXP_LOOT_Cristais Rolados|r
+    .complete 213,1
+    .mob Venture Co. Geologist
+step
+    #label Cristais
+    .goto Stranglethorn Vale,48.2,8.2
+    >>Se ainda faltarem estilhaços, termine nos |cRXP_ENEMY_Basiliscos da Serra dos Cristais|r a nordeste
+    .complete 605,1
+    .mob Crystal Spine Basilisk
+step
+    #completewith next
+    .fly Booty Bay >> Vá a |cRXP_FRIENDLY_Grom'gol|r e voe até a |cRXP_FRIENDLY_Angra do Butim|r
+step
+    .goto Stranglethorn Vale,27.0,77.1
+    .turnin 189 >>Entregue "Orelhas de Sanguescalpo"
+    .turnin 213 >>Entregue "Abordagem hostil"
+    .target Kebok
+step
+    .goto Stranglethorn Vale,27.1,77.2
+    .turnin 605 >>Entregue "Estilhaços azuis cantantes"
+    .target Crank Fizzlebub
+step
+    .goto Stranglethorn Vale,28.3,77.6
+    .turnin 575 >>Entregue "Oferta e demanda"
+    .accept 577 >>Aceite "Algumas partes faltando"
+    .target Drizzlik
+step
+    #completewith next
+    .fly Grom'gol >> Voe para |cRXP_FRIENDLY_Grom'gol|r
+step
+    .goto Stranglethorn Vale,39.5,28.7,30,0
+    .goto Stranglethorn Vale,40.1,22.9,30,0
+    .goto Stranglethorn Vale,41.3,15.3,30,0
+    .goto Stranglethorn Vale,39.5,28.7
+    >>Suba o rio a leste de Grom'gol matando os |cRXP_ENEMY_Crocoliscos Arapuca|r e pegue as |cRXP_LOOT_Peles de Crocolisco Arapuca|r
+    .complete 577,1
+    .mob Snapjaw Crocolisk
+step
+    #completewith next
+    .fly Booty Bay >> Volte a |cRXP_FRIENDLY_Grom'gol|r e voe até a |cRXP_FRIENDLY_Angra do Butim|r
+step
+    .goto Stranglethorn Vale,28.3,77.6
+    .turnin 577 >>Entregue "Algumas partes faltando"
+    .accept 628 >>Aceite "Excelsior"
+    .target Drizzlik
+step
+    #completewith next
+    .fly Grom'gol >> Voe para |cRXP_FRIENDLY_Grom'gol|r
+step
+    .goto Stranglethorn Vale,29.3,22.3,30,0
+    .goto Stranglethorn Vale,29.8,25.5,30,0
+    .goto Stranglethorn Vale,33.4,32.5,30,0
+    .goto Stranglethorn Vale,29.3,22.3
+    >>Procure o |cRXP_ENEMY_Crocolisco de Água Salgada Ancião|r (nível 38) na costa perto de Grom'gol. São poucos: dê a volta pelos pontos até achar um
+    .complete 628,1
+    .mob Elder Saltwater Crocolisk
+step
+    #completewith next
+    .fly Booty Bay >> Volte a |cRXP_FRIENDLY_Grom'gol|r e voe até a |cRXP_FRIENDLY_Angra do Butim|r
+step
+    .goto Stranglethorn Vale,28.3,77.6
+    .turnin 628 >>Entregue "Excelsior"
+    .target Drizzlik
+]])
+
+R.RegisterGuide([[
+#classic
+#forever
+<< Horde
+#group +WowPilot
+#name Angra do Butim: missões que faltaram (40-42)
+#displayname Angra do Butim: missões que faltaram (40-42)
+
+step
+    #sticky
+    #label Nivel
+    +|cRXP_WARN_Faça esta parte no nível 40 ou mais: a mina é nível 40-42 e os Rachacrânio, 39-44.|r
+step
+    .goto Stranglethorn Vale,27.0,77.1
+    .accept 209 >>Aceite "Presas Rachacrânio" com o |cRXP_FRIENDLY_Kebok|r
+    .target Kebok
+step
+    .goto Stranglethorn Vale,27.1,77.2
+    .accept 600 >>Aceite "Mineração da Empreendimentos S.A." com o |cRXP_FRIENDLY_Cranque Mirrabolha|r
+    .target Crank Fizzlebub
+step
+    #completewith next
+    .fly Grom'gol >> Voe para |cRXP_FRIENDLY_Grom'gol|r
+step
+    .goto Stranglethorn Vale,43.8,39.4,30,0
+    .goto Stranglethorn Vale,46.2,32.0,30,0
+    .goto Stranglethorn Vale,45.8,43.5,30,0
+    .goto Stranglethorn Vale,43.8,39.4
+    >>Mate os |cRXP_ENEMY_trolls Rachacrânio|r e pegue as |cRXP_LOOT_Presas Rachacrânio|r
+    .complete 209,1
+    .mob Skullsplitter Warrior
+    .mob Skullsplitter Axe Thrower
+    .mob Skullsplitter Mystic
+    .mob Skullsplitter Hunter
+step
+    .goto Stranglethorn Vale,41.3,42.4,25,0
+    .goto Stranglethorn Vale,42.0,44.6,25,0
+    .goto Stranglethorn Vale,42.1,46.2,25,0
+    .goto Stranglethorn Vale,41.3,42.4
+    >>Entre na mina da |cRXP_ENEMY_Empreendimentos S.A.|r logo ao sul e pegue os |cRXP_LOOT_Cristais Azuis Canoros|r dos mineiros
+    .complete 600,1
+    .mob Venture Co. Strip Miner
+    .mob Venture Co. Tinkerer
+    .mob Venture Co. Surveyor
+step
+    #completewith next
+    .fly Booty Bay >> Volte a |cRXP_FRIENDLY_Grom'gol|r e voe até a |cRXP_FRIENDLY_Angra do Butim|r
+step
+    .goto Stranglethorn Vale,27.0,77.1
+    .turnin 209 >>Entregue "Presas Rachacrânio"
+    .target Kebok
+step
+    .goto Stranglethorn Vale,27.1,77.2
+    .turnin 600 >>Entregue "Mineração da Empreendimentos S.A."
+    .target Crank Fizzlebub
+]])
