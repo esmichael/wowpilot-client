@@ -1,4 +1,4 @@
--- Guias do WowPilot para o RestedXP (RXPGuides): aparecem na lista de guias do RXP, no grupo "+WowPilot", com a
+-- Guias do WowPilot para o RestedXP (RXPGuides): aparecem na lista de guias do RXP, no grupo "WowPilot" (sem "+": grupo com "+" é guia de farm de ouro e só aparece no modo Assistente de Ouro), com a
 -- seta e os pontos no mapa como os guias deles. Sem o RXP, este arquivo não faz nada.
 --
 -- Pesca: "Nat Pagle, o pescador supremo" (6607). Os quatro peixes só fisgam com a missão aceita; os pontos são os
@@ -12,7 +12,7 @@ R.RegisterGuide([[
 #classic
 #forever
 << Horde
-#group +WowPilot
+#group WowPilot
 #name Pesca: missão do Nat Pagle (Horda)
 #displayname Pesca: missão do Nat Pagle
 #guideKind profession
@@ -98,7 +98,7 @@ R.RegisterGuide([[
 #classic
 #forever
 << Horde
-#group +WowPilot
+#group WowPilot
 #name Angra do Butim: missões que faltaram (36-38)
 #displayname Angra do Butim: missões que faltaram (36-38)
 #next Angra do Butim: missões que faltaram (40-42)
@@ -239,7 +239,7 @@ R.RegisterGuide([[
 #classic
 #forever
 << Horde
-#group +WowPilot
+#group WowPilot
 #name Angra do Butim: missões que faltaram (40-42)
 #displayname Angra do Butim: missões que faltaram (40-42)
 

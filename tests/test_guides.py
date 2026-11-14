@@ -23,7 +23,7 @@ def main():
     g = run(True)
     assert len(g) == 3, g
     text = g[0]
-    for tag in ("#classic", "#forever", "#name ", "#group +WowPilot", ".accept 6607", ".turnin 6607", ".train 18248"):
+    for tag in ("#classic", "#forever", "#name ", "#group WowPilot", ".accept 6607", ".turnin 6607", ".train 18248"):
         assert tag in text, tag
     fish = set(re.findall(r"\.collect (\d+),1,6607", text))
     assert fish == {"16967", "16968", "16969", "16970"}, fish
