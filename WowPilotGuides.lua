@@ -65,7 +65,7 @@ step
     .collect 16969,1,6607 --Molinésia-azul-da-costa-selvagem
 step
     .goto Swamp of Sorrows,46.1,54.8
-    >>Vá a pé pelo norte (Bosque do Corvo e Passo do Vento Morto) até o Pântano das Mágoas
+    >>Vá a pé pelo norte (Floresta do Crepúsculo e Passo do Vento Morto) até o Pântano das Mágoas
     .fp Stonard >> Aprenda o voo de |cRXP_FRIENDLY_Pedregal|r
 step
     .goto Swamp of Sorrows,90.4,73.1,25,0
