@@ -1,5 +1,5 @@
 ## Interface: 120105, 120100, 120007, 16001
-## OptionalDeps: Simulationcraft
+## OptionalDeps: Simulationcraft, RXPGuides
 ## Title: WowPilot
 ## Notes: Envia gear, bolsas, moedas, Vault, M+, grupo e chat ao site WowPilot (código na tela + cliente WowPilotSync)
 ## Author: Michael
@@ -9,3 +9,4 @@
 WowPilot.lua
 WowPilotLive.lua
 WowPilotPulse.lua
+WowPilotGuides.lua
