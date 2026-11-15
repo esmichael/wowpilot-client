@@ -435,7 +435,7 @@ public class TrayApp : ApplicationContext {
     // o site numa janela do app: a posição chega direto do pulso (~5×/s); sem WebView2, abre no navegador
     public void ShowSite() {
         if (site == null || site.IsDisposed) {
-            site = new SiteForm(cfg.Server, dir);
+            site = new SiteForm(cfg, dir);
             SiteForm f = site;
             f.Failed += (why) => {
                 if (main.IsHandleCreated) main.AddLog(DateTime.Now, "janela do site: " + why + " — abrindo no navegador", LogLevel.Warn);

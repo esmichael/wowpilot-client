@@ -1,5 +1,5 @@
 // Site dentro do app (WebView2, o motor do Edge que já vem no Windows 10/11): a mesma página do navegador, logada pelo
-// cookie dela (fica em %LOCALAPPDATA%\WowPilot\navegador), com o servidor mandando estado, mapa e rota como sempre — e o
+// token do programa (/app/entrar, token no cabeçalho) e depois pelo cookie dela (fica em %LOCALAPPDATA%\WowPilot\navegador), com o servidor mandando estado, mapa e rota como sempre — e o
 // pulso entregue direto pelo app (PostWebMessageAsJson, ~5 vezes por segundo, sem passar pela internet).
 // Os DLLs do SDK vão embutidos no .exe (build.cmd); o loader nativo é extraído na primeira vez.
 // C# 5 (csc.exe do .NET Framework 4).
@@ -62,13 +62,15 @@ public static class WebLibs {
 
 public class SiteForm : Form {
     readonly WebView2 web = new WebView2();
-    readonly string server, configDir;
+    readonly string server, configDir, token;
     bool ready;
+    DateTime autoLoginAt = DateTime.MinValue;
     // não deu para abrir (sem o WebView2 Runtime, por exemplo): quem abriu cai para o navegador
     public event Action<string> Failed;
 
-    public SiteForm(string server, string configDir) {
-        this.server = server.TrimEnd('/');
+    public SiteForm(Config cfg, string configDir) {
+        server = cfg.Server.TrimEnd('/');
+        token = cfg.Token ?? "";
         this.configDir = configDir;
         Text = "WowPilot";
         Icon = Theme.App;
@@ -106,6 +108,13 @@ public class SiteForm : Form {
             else Integration.Open(e.Uri);
         };
         core.NavigationStarting += (s, e) => {
+            // a sessão caiu (expirou, saiu em outro lugar): entra de novo com o token, no máximo uma vez por minuto
+            if (e.Uri.StartsWith(server + "/entrar/", StringComparison.OrdinalIgnoreCase) && token.Length > 0
+                    && (DateTime.Now - autoLoginAt).TotalSeconds > 60) {
+                e.Cancel = true;
+                AppLogin(NextOf(e.Uri));
+                return;
+            }
             if (Ours(e.Uri) || !e.IsUserInitiated) return;
             e.Cancel = true;
             if (e.Uri.StartsWith("http", StringComparison.OrdinalIgnoreCase)) Integration.Open(e.Uri);
@@ -115,7 +124,28 @@ public class SiteForm : Form {
             Text = string.IsNullOrEmpty(t) ? "WowPilot" : t;
         };
         ready = true;
-        core.Navigate(server + "/");
+        if (token.Length > 0) AppLogin("/");
+        else core.Navigate(server + "/");
+    }
+
+    // entra com o token do programa: ele vai no cabeçalho (não fica na URL nem no histórico) e o site cria a sessão
+    void AppLogin(string next) {
+        autoLoginAt = DateTime.Now;
+        CoreWebView2 core = web.CoreWebView2;
+        CoreWebView2WebResourceRequest req = core.Environment.CreateWebResourceRequest(
+            server + "/app/entrar?next=" + Uri.EscapeDataString(next), "GET", null,
+            "Authorization: Token " + token + "\r\nX-WowPilot-Client: exe/" + Http.Version);
+        core.NavigateWithWebResourceRequest(req);
+    }
+
+    static string NextOf(string uri) {
+        int i = uri.IndexOf("next=", StringComparison.Ordinal);
+        if (i < 0) return "/";
+        string v = uri.Substring(i + 5);
+        int amp = v.IndexOf('&');
+        if (amp >= 0) v = v.Substring(0, amp);
+        v = Uri.UnescapeDataString(v);
+        return v.StartsWith("/") && !v.StartsWith("//") ? v : "/";
     }
 
     bool Ours(string uri) {
