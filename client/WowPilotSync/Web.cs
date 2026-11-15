@@ -68,7 +68,14 @@ public class SiteForm : Form {
     // não deu para abrir (sem o WebView2 Runtime, por exemplo): quem abriu cai para o navegador
     public event Action<string> Failed;
 
-    public SiteForm(Config cfg, string configDir) {
+    readonly string startPath;
+    readonly bool overlay;
+
+    // overlay: "Mapa por cima do jogo" — janela pequena, sempre na frente (mesmo com o jogo em foco, em janela ou tela
+    // cheia em janela), só com o mapa seguindo você (/mapa/me/?sobrepor=1); posição e tamanho lembrados
+    public SiteForm(Config cfg, string configDir, bool overlay = false) {
+        this.overlay = overlay;
+        startPath = overlay ? "/mapa/me/?sobrepor=1" : "/";
         server = cfg.Server.TrimEnd('/');
         token = cfg.Token ?? "";
         this.configDir = configDir;
@@ -79,6 +86,16 @@ public class SiteForm : Form {
         ClientSize = new Size(1360, 860);
         MinimumSize = new Size(640, 480);
         StartPosition = FormStartPosition.CenterScreen;
+        if (overlay) {
+            Text = "WowPilot · mapa";
+            FormBorderStyle = FormBorderStyle.SizableToolWindow;   // barra fininha, fora da barra de tarefas e do Alt+Tab
+            ShowInTaskbar = false;
+            TopMost = true;
+            MinimumSize = new Size(160, 120);
+            StartPosition = FormStartPosition.Manual;
+            Bounds = SavedBounds();
+            FormClosing += (s, e) => SaveBounds();
+        }
         BackColor = Color.FromArgb(17, 19, 24);
         web.Dock = DockStyle.Fill;
         web.DefaultBackgroundColor = BackColor;
@@ -120,12 +137,13 @@ public class SiteForm : Form {
             if (e.Uri.StartsWith("http", StringComparison.OrdinalIgnoreCase)) Integration.Open(e.Uri);
         };
         core.DocumentTitleChanged += (s, e) => {
+            if (overlay) return;
             string t = web.CoreWebView2.DocumentTitle;
             Text = string.IsNullOrEmpty(t) ? "WowPilot" : t;
         };
         ready = true;
-        if (token.Length > 0) AppLogin("/");
-        else core.Navigate(server + "/");
+        if (token.Length > 0) AppLogin(startPath);
+        else core.Navigate(server + startPath);
     }
 
     // entra com o token do programa: ele vai no cabeçalho (não fica na URL nem no histórico) e o site cria a sessão
@@ -165,6 +183,26 @@ public class SiteForm : Form {
         CoreWebView2 core = web.CoreWebView2;
         if (core == null || !Ours(core.Source)) return;
         try { core.PostWebMessageAsJson("{\"kind\":\"pulse\",\"d\":" + json + "}"); } catch { }
+    }
+
+    string BoundsFile { get { return Path.Combine(configDir, "mapa-por-cima.txt"); } }
+
+    // padrão: canto inferior direito da tela principal (longe do canto superior esquerdo do jogo, onde fica a faixa
+    // do pulso: se a janela cobrir a faixa, a posição para)
+    Rectangle SavedBounds() {
+        try {
+            string[] v = File.ReadAllText(BoundsFile).Trim().Split(',');
+            var r = new Rectangle(int.Parse(v[0]), int.Parse(v[1]), int.Parse(v[2]), int.Parse(v[3]));
+            foreach (Screen sc in Screen.AllScreens) if (sc.WorkingArea.IntersectsWith(r)) return r;
+        } catch { }
+        Rectangle wa = Screen.PrimaryScreen.WorkingArea;
+        int w = Math.Min(480, wa.Width / 3), h = Math.Min(400, wa.Height / 2);
+        return new Rectangle(wa.Right - w - 16, wa.Bottom - h - 16, w, h);
+    }
+
+    void SaveBounds() {
+        if (WindowState != FormWindowState.Normal) return;
+        try { File.WriteAllText(BoundsFile, Left + "," + Top + "," + Width + "," + Height); } catch { }
     }
 
     protected override void Dispose(bool disposing) {

@@ -79,7 +79,13 @@ Para ver o seu painel: botão **Abrir o site** na janela do programa, no menu do
 sua posição chega direto do programa, sem passar pela internet, e a seta anda praticamente junto com você. Não precisa
 o login é automático (o programa usa o token dele). No navegador a posição também anda, um pouco mais devagar (passa pelo servidor).
 
-No ícone do WowPilot Sync (perto do relógio): **Abrir o site**, **Abrir o site no navegador**, **Configurações…** e **Sair**.
+**Mapa por cima do jogo** (botão na janela do programa e no menu do ícone): uma janela pequena só com o mapa, seguindo
+você, que fica sempre na frente do jogo mesmo com o jogo em foco. Funciona com o jogo em janela ou em "tela cheia em
+janela" (na tela cheia exclusiva o jogo cobre tudo). Arraste e redimensione à vontade: ela lembra onde ficou. Só não a
+deixe em cima do canto superior esquerdo do jogo, onde fica a faixinha do pulso. A tecla Z mostra o resto do site.
+
+No ícone do WowPilot Sync (perto do relógio): **Abrir o site**, **Mapa por cima do jogo**, **Abrir o site no navegador**,
+**Configurações…** e **Sair**.
 
 ### Atualizar
 

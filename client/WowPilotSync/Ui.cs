@@ -301,7 +301,7 @@ public class TrayApp : ApplicationContext {
     Engine engine;
     readonly NotifyIcon tray = new NotifyIcon();
     readonly MainForm main;
-    SiteForm site;   // o site dentro do app (WebView2); null/fechada = nada a entregar
+    SiteForm site, overlay;   // o site dentro do app (WebView2) e o mapa por cima do jogo; null/fechada = nada a entregar
     readonly Dictionary<SyncState, Icon> icons = new Dictionary<SyncState, Icon>();
     readonly ToolStripMenuItem autoItem;
     SyncState lastState = SyncState.Starting;
@@ -324,6 +324,7 @@ public class TrayApp : ApplicationContext {
 
         main = new MainForm();
         main.OpenDashboard += ShowSite;
+        main.OpenOverlay += ShowOverlay;
         main.OpenSettings += () => { Config c = Config.Load(dir); if (AskSettings(c, main)) StartEngine(); };
         main.OpenShots += () => {
             if (engine == null) return;
@@ -346,6 +347,7 @@ public class TrayApp : ApplicationContext {
         openItem.Font = new Font(openItem.Font, FontStyle.Bold);
         menu.Items.Add(openItem);
         menu.Items.Add("Abrir o site", null, (s, e) => ShowSite());
+        menu.Items.Add("Mapa por cima do jogo", null, (s, e) => ShowOverlay());
         menu.Items.Add("Abrir o site no navegador", null, (s, e) => Integration.Open(cfg.Server + "/"));
         menu.Items.Add("Configurações…", null, (s, e) => { ShowMain(); main.ClickSettings(); });
         autoItem = new ToolStripMenuItem("Iniciar com o Windows", null, (s, e) => Integration.AutoStart = !Integration.AutoStart);
@@ -409,8 +411,8 @@ public class TrayApp : ApplicationContext {
         e.Logged += (t, msg, level) => main.BeginInvoke((Action)(() => { if (e == engine) main.AddLog(t, msg, level); }));
         e.Changed += () => main.BeginInvoke((Action)(() => { if (e == engine) Refresh(); }));
         e.LocalPulse += (json) => {   // direto para a página do site no app, sem passar pelo servidor
-            SiteForm f = site;
-            if (f != null && !f.IsDisposed && f.IsHandleCreated) try { f.BeginInvoke((Action)(() => f.Pulse(json))); } catch { }
+            foreach (SiteForm f in new[] { site, overlay })
+                if (f != null && !f.IsDisposed && f.IsHandleCreated) try { f.BeginInvoke((Action)(() => f.Pulse(json))); } catch { }
         };
         Refresh();
         e.Start();
@@ -433,19 +435,26 @@ public class TrayApp : ApplicationContext {
     }
 
     // o site numa janela do app: a posição chega direto do pulso (~5×/s); sem WebView2, abre no navegador
-    public void ShowSite() {
-        if (site == null || site.IsDisposed) {
-            site = new SiteForm(cfg, dir);
-            SiteForm f = site;
-            f.Failed += (why) => {
+    public void ShowSite() { site = Open(site, false); }
+
+    // só o mapa, numa janela pequena sempre na frente do jogo
+    public void ShowOverlay() { overlay = Open(overlay, true); }
+
+    SiteForm Open(SiteForm f, bool asOverlay) {
+        if (f == null || f.IsDisposed) {
+            f = new SiteForm(cfg, dir, asOverlay);
+            SiteForm made = f;
+            string path = asOverlay ? "/mapa/me/?sobrepor=1" : "/";
+            made.Failed += (why) => {
                 if (main.IsHandleCreated) main.AddLog(DateTime.Now, "janela do site: " + why + " — abrindo no navegador", LogLevel.Warn);
-                Integration.Open(cfg.Server + "/");
+                Integration.Open(cfg.Server + path);
             };
-            f.FormClosed += (s, e) => { if (site == f) site = null; };
+            made.FormClosed += (s, e) => { if (site == made) site = null; if (overlay == made) overlay = null; };
         }
-        site.Show();
-        if (site.WindowState == FormWindowState.Minimized) site.WindowState = FormWindowState.Normal;
-        site.Activate();
+        f.Show();
+        if (f.WindowState == FormWindowState.Minimized) f.WindowState = FormWindowState.Normal;
+        f.Activate();
+        return f;
     }
 
     void ShowMain() {
@@ -514,6 +523,7 @@ public class TrayApp : ApplicationContext {
         tray.Visible = false;
         if (engine != null) engine.Stop();
         if (site != null && !site.IsDisposed) site.Close();
+        if (overlay != null && !overlay.IsDisposed) overlay.Close();
         main.Close();
         ExitThread();
     }
@@ -531,7 +541,7 @@ public class StatusDot : Control {
 }
 
 public class MainForm : Form {
-    public event Action OpenDashboard, OpenSettings, OpenShots, CheckForUpdate;
+    public event Action OpenDashboard, OpenOverlay, OpenSettings, OpenShots, CheckForUpdate;
     readonly StatusDot dot = new StatusDot();
     readonly Label title = new Label(), site = new Label();
     readonly Label sentValue = new Label(), lastValue = new Label(), pendingValue = new Label(), shotsValue = new Label();
@@ -544,7 +554,7 @@ public class MainForm : Form {
         Font = Theme.Base;
         AutoScaleMode = AutoScaleMode.Dpi;
         AutoScaleDimensions = new SizeF(96f, 96f);
-        ClientSize = new Size(620, 440);
+        ClientSize = new Size(780, 440);
         MinimumSize = new Size(520, 360);
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = Color.White;
@@ -585,9 +595,10 @@ public class MainForm : Form {
         var hide = MakeButton("Esconder", (s, e) => Close());
         settingsBtn = MakeButton("Configurações…", (s, e) => { if (OpenSettings != null) OpenSettings(); });
         var dash = MakeButton("Abrir o site", (s, e) => { if (OpenDashboard != null) OpenDashboard(); });
+        var over = MakeButton("Mapa por cima do jogo", (s, e) => { if (OpenOverlay != null) OpenOverlay(); });
         var shots = MakeButton("Pasta dos prints", (s, e) => { if (OpenShots != null) OpenShots(); });
         updateBtn = MakeButton("Atualizar", (s, e) => { if (CheckForUpdate != null) CheckForUpdate(); });
-        buttons.Controls.AddRange(new Control[] { hide, settingsBtn, dash, shots, updateBtn });
+        buttons.Controls.AddRange(new Control[] { hide, settingsBtn, dash, over, shots, updateBtn });
         AcceptButton = dash;
 
         Controls.Add(logWrap);
