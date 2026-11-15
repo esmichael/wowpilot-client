@@ -446,7 +446,9 @@ public class TrayApp : ApplicationContext {
             SiteForm made = f;
             string path = asOverlay ? "/mapa/me/?sobrepor=1" : "/";
             made.Failed += (why) => {
-                if (main.IsHandleCreated) main.AddLog(DateTime.Now, "janela do site: " + why + " — abrindo no navegador", LogLevel.Warn);
+                string msg = "janela do site: " + why + " — abrindo no navegador";
+                try { File.AppendAllText(Path.Combine(dir, "WowPilotSync.log"), DateTime.Now.ToString("yyyy-MM-dd [HH:mm:ss] ") + msg + "\r\n"); } catch { }
+                if (main.IsHandleCreated) main.AddLog(DateTime.Now, msg, LogLevel.Warn);
                 Integration.Open(cfg.Server + path);
             };
             made.FormClosed += (s, e) => { if (site == made) site = null; if (overlay == made) overlay = null; };

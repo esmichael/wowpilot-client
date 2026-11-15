@@ -18,6 +18,15 @@ namespace WowPilot {
 public static class WebLibs {
     public const string SdkVersion = "1.0.4191.47";   // client/webview2/README.txt
     static readonly Dictionary<string, Assembly> loaded = new Dictionary<string, Assembly>();
+    static bool loaderSet;
+
+    // a pasta do loader só pode ser dada uma vez por processo (depois do primeiro uso o WebView2 recusa): a segunda
+    // janela (mapa por cima, ou o site reaberto) caía no navegador por isso
+    public static void UseLoader(string configDir) {
+        if (loaderSet) return;
+        CoreWebView2Environment.SetLoaderDllFolderPath(LoaderDir(configDir));
+        loaderSet = true;
+    }
 
     // chamado no início do Main, antes de qualquer classe que use o WebView2 ser compilada pelo JIT
     public static void Register() {
@@ -106,13 +115,13 @@ public class SiteForm : Form {
 
     async Task Init() {
         try {
-            CoreWebView2Environment.SetLoaderDllFolderPath(WebLibs.LoaderDir(configDir));
+            WebLibs.UseLoader(configDir);
             await web.EnsureCoreWebView2Async(null);
         } catch (WebView2RuntimeNotFoundException) {
             Fail("falta o Microsoft Edge WebView2 Runtime neste Windows");
             return;
         } catch (Exception e) {
-            Fail(e.Message);
+            Fail(e.GetType().Name + ": " + e.Message);
             return;
         }
         CoreWebView2 core = web.CoreWebView2;
