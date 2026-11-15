@@ -21,7 +21,7 @@ local CELL = 2            -- px físicos
 local BITS = 3
 local COLS = 56           -- células por linha (2 linhas = 336 bits = 42 bytes, o pacote inteiro)
 local ROWS = 2
-local TICK = 1            -- s
+local TICK = 0.2          -- s (o WowPilotSync lê a cada 0,2 s; ao site vai no máximo 1 por segundo)
 
 local frame, cells = nil, {}
 local seq, lastBody = 0, nil

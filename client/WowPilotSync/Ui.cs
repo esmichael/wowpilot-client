@@ -17,9 +17,11 @@ namespace WowPilot {
 public static class Program {
     const string MutexName = @"Local\WowPilotSync";
     const string ShowEventName = @"Local\WowPilotSync.Show";
+    public const string SiteRequest = "site";   // abrir.txt: outra instância pediu a janela do site
 
     [STAThread]
     public static int Main(string[] args) {
+        WebLibs.Register();   // DLLs do WebView2 embutidos no .exe (janela do site)
         var opt = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         string url = null;
         for (int i = 0; i < args.Length; i++) {
@@ -37,12 +39,7 @@ public static class Program {
             try { Process.GetProcessById(int.Parse(pidText)).WaitForExit(15000); } catch { }
         }
         Updater.Cleanup(Application.ExecutablePath);
-        if (opt.ContainsKey("open-site")) {   // atalho "WowPilot": abre o site no navegador padrão e sai
-            Config c = Config.Load(dir);
-            c.Normalize();
-            Integration.Open((c.Server.Length > 0 ? c.Server : Config.DefaultServer) + "/");
-            return 0;
-        }
+        bool openSite = opt.ContainsKey("open-site");   // atalho "WowPilot": a janela do site (no app)
         if (opt.ContainsKey("pulse-png")) return Pulse.DecodePngCli(opt["pulse-png"]);   // testes: faixa do pulso numa imagem
         if (opt.ContainsKey("list-games")) return ListGames(opt, dir);
         if (opt.ContainsKey("update")) return UpdateCli(opt, dir);
@@ -64,7 +61,7 @@ public static class Program {
         using (var mutex = new Mutex(true, MutexName, out first)) {
             if (!first) {
                 // já está aberto: entrega o link (se houver) e pede para a outra instância aparecer
-                if (url != null) File.WriteAllText(Path.Combine(dir, "abrir.txt"), url);
+                if (url != null || openSite) File.WriteAllText(Path.Combine(dir, "abrir.txt"), url ?? SiteRequest);
                 try { EventWaitHandle.OpenExisting(ShowEventName).Set(); } catch { }
                 return 0;
             }
@@ -72,8 +69,9 @@ public static class Program {
             Application.SetCompatibleTextRenderingDefault(false);
             Integration.RegisterProtocol();
             using (var show = new EventWaitHandle(false, EventResetMode.AutoReset, ShowEventName)) {
-                var ctx = new TrayApp(dir, show, url, opt.ContainsKey("minimized"));
+                var ctx = new TrayApp(dir, show, url, opt.ContainsKey("minimized") || openSite);
                 if (!ctx.Ready) return 1;
+                if (openSite) ctx.ShowSite();
                 Application.Run(ctx);
             }
         }
@@ -172,7 +170,7 @@ public static class Integration {
     // Atalhos "WowPilot Sync" no Menu Iniciar e na Área de Trabalho, apontando para este .exe (portátil: se ele
     // mudar de pasta, o atalho é corrigido na próxima vez que abrir). .lnk pelo WScript.Shell, que já vem no Windows.
     public static string LinksDir;   // só testes: pasta no lugar do Menu Iniciar/Área de Trabalho
-    // "WowPilot Sync" abre o programa; "WowPilot" abre o site no navegador (o .exe com --open-site): dá para fixar
+    // "WowPilot Sync" abre o programa; "WowPilot" abre o site numa janela do app (o .exe com --open-site): dá para fixar
     // na barra de tarefas (o Windows não deixa um programa se fixar sozinho, só a pessoa)
     const string AppLink = "WowPilot Sync.lnk", SiteLink = "WowPilot.lnk";
 
@@ -185,7 +183,7 @@ public static class Integration {
         foreach (bool desktop in new[] { false, true }) {
             bool want = desktop ? c.DesktopShortcut : !c.NoStartMenu;
             SetShortcut(Path.Combine(Folder(desktop), AppLink), want, "", "WowPilot Sync");
-            SetShortcut(Path.Combine(Folder(desktop), SiteLink), want, "--open-site", "Abre o site do WowPilot no navegador");
+            SetShortcut(Path.Combine(Folder(desktop), SiteLink), want, "--open-site", "Abre o site do WowPilot");
         }
     }
 
@@ -303,6 +301,7 @@ public class TrayApp : ApplicationContext {
     Engine engine;
     readonly NotifyIcon tray = new NotifyIcon();
     readonly MainForm main;
+    SiteForm site;   // o site dentro do app (WebView2); null/fechada = nada a entregar
     readonly Dictionary<SyncState, Icon> icons = new Dictionary<SyncState, Icon>();
     readonly ToolStripMenuItem autoItem;
     SyncState lastState = SyncState.Starting;
@@ -324,7 +323,7 @@ public class TrayApp : ApplicationContext {
         cfg.Normalize();
 
         main = new MainForm();
-        main.OpenDashboard += () => Integration.Open(cfg.Server + "/");
+        main.OpenDashboard += ShowSite;
         main.OpenSettings += () => { Config c = Config.Load(dir); if (AskSettings(c, main)) StartEngine(); };
         main.OpenShots += () => {
             if (engine == null) return;
@@ -346,7 +345,8 @@ public class TrayApp : ApplicationContext {
         var openItem = new ToolStripMenuItem("Abrir WowPilot Sync", null, (s, e) => ShowMain());
         openItem.Font = new Font(openItem.Font, FontStyle.Bold);
         menu.Items.Add(openItem);
-        menu.Items.Add("Abrir o site", null, (s, e) => Integration.Open(cfg.Server + "/"));
+        menu.Items.Add("Abrir o site", null, (s, e) => ShowSite());
+        menu.Items.Add("Abrir o site no navegador", null, (s, e) => Integration.Open(cfg.Server + "/"));
         menu.Items.Add("Configurações…", null, (s, e) => { ShowMain(); main.ClickSettings(); });
         autoItem = new ToolStripMenuItem("Iniciar com o Windows", null, (s, e) => Integration.AutoStart = !Integration.AutoStart);
         menu.Items.Add(autoItem);
@@ -391,6 +391,7 @@ public class TrayApp : ApplicationContext {
         string file = Path.Combine(dir, "abrir.txt");
         string url = null;
         try { if (File.Exists(file)) { url = File.ReadAllText(file).Trim(); File.Delete(file); } } catch { }
+        if (url == Program.SiteRequest) { ShowSite(); return; }
         ShowMain();
         if (!string.IsNullOrEmpty(url)) {
             Config c = Config.Load(dir);
@@ -407,6 +408,10 @@ public class TrayApp : ApplicationContext {
         main.Bind(e, cfg);
         e.Logged += (t, msg, level) => main.BeginInvoke((Action)(() => { if (e == engine) main.AddLog(t, msg, level); }));
         e.Changed += () => main.BeginInvoke((Action)(() => { if (e == engine) Refresh(); }));
+        e.LocalPulse += (json) => {   // direto para a página do site no app, sem passar pelo servidor
+            SiteForm f = site;
+            if (f != null && !f.IsDisposed && f.IsHandleCreated) try { f.BeginInvoke((Action)(() => f.Pulse(json))); } catch { }
+        };
         Refresh();
         e.Start();
     }
@@ -425,6 +430,22 @@ public class TrayApp : ApplicationContext {
                 Notify(5000, "WowPilot Sync", "O site não respondeu. Os dados ficam guardados e são reenviados sozinhos.", ToolTipIcon.Warning, ShowMain);
             lastState = engine.State;
         }
+    }
+
+    // o site numa janela do app: a posição chega direto do pulso (~5×/s); sem WebView2, abre no navegador
+    public void ShowSite() {
+        if (site == null || site.IsDisposed) {
+            site = new SiteForm(cfg.Server, dir);
+            SiteForm f = site;
+            f.Failed += (why) => {
+                if (main.IsHandleCreated) main.AddLog(DateTime.Now, "janela do site: " + why + " — abrindo no navegador", LogLevel.Warn);
+                Integration.Open(cfg.Server + "/");
+            };
+            f.FormClosed += (s, e) => { if (site == f) site = null; };
+        }
+        site.Show();
+        if (site.WindowState == FormWindowState.Minimized) site.WindowState = FormWindowState.Normal;
+        site.Activate();
     }
 
     void ShowMain() {
@@ -492,6 +513,7 @@ public class TrayApp : ApplicationContext {
         exiting = true;
         tray.Visible = false;
         if (engine != null) engine.Stop();
+        if (site != null && !site.IsDisposed) site.Close();
         main.Close();
         ExitThread();
     }

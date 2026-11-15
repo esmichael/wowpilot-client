@@ -71,13 +71,15 @@ Comandos no jogo:
 | `/wpilot pulso on\|off` | liga/desliga a faixinha no canto superior esquerdo que leva a posição ao site a cada segundo |
 
 A faixinha colorida fixa no canto superior esquerdo (cerca de 112×4 pixels) é o **pulso**: o WowPilot Sync lê
-esses pixels da janela do jogo a cada segundo, sem tirar print, e o mapa do site acompanha você quase em tempo real.
+esses pixels da janela do jogo 5 vezes por segundo, sem tirar print, e o mapa do site acompanha você quase em tempo real.
 Funciona com o jogo em janela ou em tela cheia em janela, à vista (minimizado ou coberto por outra janela, não dá).
 
 Para ver o seu painel: botão **Abrir o site** na janela do programa, no menu do ícone perto do relógio ou no atalho
-**WowPilot**. Ele abre no seu navegador padrão.
+**WowPilot**. Ele abre numa janela do próprio programa (o mesmo site, com o motor do Edge que já vem no Windows): ali a
+sua posição chega direto do programa, sem passar pela internet, e a seta anda praticamente junto com você. Entre com
+o seu usuário uma vez; a janela lembra. No navegador a posição também anda, um pouco mais devagar (passa pelo servidor).
 
-No ícone do WowPilot Sync (perto do relógio): **Abrir o site**, **Configurações…** e **Sair**.
+No ícone do WowPilot Sync (perto do relógio): **Abrir o site**, **Abrir o site no navegador**, **Configurações…** e **Sair**.
 
 ### Atualizar
 

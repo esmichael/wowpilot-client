@@ -101,7 +101,7 @@ def win_path(p: Path) -> str:
 
 def run_client(shots: list[list[Image.Image]], exe: bool = False, chat: bool = False):
     """Salva os prints numa pasta do Windows e roda o cliente (.ps1 -Once ou .exe --once) contra um servidor local."""
-    temp = subprocess.run(["cmd.exe", "/c", "echo %TEMP%"], capture_output=True, text=True).stdout.strip()
+    temp = subprocess.run(["cmd.exe", "/c", "echo %TEMP%"], capture_output=True, text=True, errors="replace").stdout.strip()
     base = Path(subprocess.run(["wslpath", "-u", temp], capture_output=True, text=True).stdout.strip()) / "wowpilot_test"
     shutil.rmtree(base, ignore_errors=True)
     shot_dir = base / "Screenshots"
@@ -134,7 +134,7 @@ def run_client(shots: list[list[Image.Image]], exe: bool = False, chat: bool = F
 
 def check_games(check, exe: Path):
     """Busca das variações do jogo (WowInstall, a mesma fonte no .exe e no .ps1) numa instalação de mentira."""
-    temp = subprocess.run(["cmd.exe", "/c", "echo %TEMP%"], capture_output=True, text=True).stdout.strip()
+    temp = subprocess.run(["cmd.exe", "/c", "echo %TEMP%"], capture_output=True, text=True, errors="replace").stdout.strip()
     root = Path(subprocess.run(["wslpath", "-u", temp], capture_output=True, text=True).stdout.strip()) / "wowpilot_games" / "World of Warcraft"
     shutil.rmtree(root.parent, ignore_errors=True)
     for folder, product, exe_name in (("_retail_", "wow", "Wow.exe"), ("_forever_", "wowf", "Wow.exe"),
@@ -159,7 +159,7 @@ def check_games(check, exe: Path):
 
 def check_shortcuts(check, exe: Path):
     """Atalhos do .exe numa pasta de teste (no lugar do Menu Iniciar e da Área de Trabalho)."""
-    temp = subprocess.run(["cmd.exe", "/c", "echo %TEMP%"], capture_output=True, text=True).stdout.strip()
+    temp = subprocess.run(["cmd.exe", "/c", "echo %TEMP%"], capture_output=True, text=True, errors="replace").stdout.strip()
     base = Path(subprocess.run(["wslpath", "-u", temp], capture_output=True, text=True).stdout.strip()) / "wowpilot_links"
     shutil.rmtree(base, ignore_errors=True)
     (base / "cfg").mkdir(parents=True)
@@ -195,7 +195,7 @@ def check_update(check, exe: Path):
     import hashlib
     import io
     import zipfile
-    temp = subprocess.run(["cmd.exe", "/c", "echo %TEMP%"], capture_output=True, text=True).stdout.strip()
+    temp = subprocess.run(["cmd.exe", "/c", "echo %TEMP%"], capture_output=True, text=True, errors="replace").stdout.strip()
     base = Path(subprocess.run(["wslpath", "-u", temp], capture_output=True, text=True).stdout.strip()) / "wowpilot_update"
     shutil.rmtree(base, ignore_errors=True)
     app = base / "app"
@@ -273,7 +273,7 @@ def check_update(check, exe: Path):
 
 def check_addon_install(check, exe: Path):
     """Addon embutido no .exe: instala no Retail/Forever, atualiza versão velha, não mexe em clone do git nem no PTR."""
-    temp = subprocess.run(["cmd.exe", "/c", "echo %TEMP%"], capture_output=True, text=True).stdout.strip()
+    temp = subprocess.run(["cmd.exe", "/c", "echo %TEMP%"], capture_output=True, text=True, errors="replace").stdout.strip()
     root = Path(subprocess.run(["wslpath", "-u", temp], capture_output=True, text=True).stdout.strip()) / "wowpilot_addon" / "World of Warcraft"
     shutil.rmtree(root.parent, ignore_errors=True)
     for folder, product in (("_retail_", "wow"), ("_forever_", "wowf"), ("_xptr_", "wowxptr")):

@@ -275,13 +275,19 @@ public class Engine {
         }
     }
 
-    // pulso: a cada segundo lê a faixa do addon na janela do jogo e manda ao site quando ela muda (posição, vida…).
+    // pulso: a cada 0,2 s lê a faixa do addon na janela do jogo. Cada pulso novo vai na hora para a janela do site no app
+    // (LocalPulse); ao site (/api/pulse) no máximo um por segundo, em segundo plano (a leitura não espera a rede).
     // Sem janela à vista (minimizada, encoberta, tela cheia exclusiva) não manda nada; os prints seguem como antes.
+    public const int PulseMs = 200, PulseSendMs = 1000;
+    public event Action<string> LocalPulse;
+
     void PulseLoop() {
-        var lastSeq = new Dictionary<uint, int>();
+        var lastLocal = new Dictionary<uint, int>();
+        var lastSeq = new Dictionary<uint, int>();   // o último que o site aceitou
         var sentAt = new Dictionary<uint, DateTime>();
         var flushed = new HashSet<uint>();   // parado: o último pulso vai de novo uma vez (o site monta a rota com ele)
-        bool reading = false, failing = false;
+        object gate = new object();
+        bool reading = false, failing = false, sending = false;
         DateTime lastSeen = DateTime.MinValue;
         while (!stop) {
             DateTime t0 = DateTime.Now;
@@ -289,7 +295,7 @@ public class Engine {
                 List<PulseData> found = Cfg.Complete ? Pulse.ReadScreen() : new List<PulseData>();
                 if (found.Count > 0) {
                     lastSeen = DateTime.Now;
-                    if (!reading) { reading = true; Log("pulso: lendo a faixa do jogo (posição a cada segundo, sem print)", LogLevel.Ok); }
+                    if (!reading) { reading = true; Log("pulso: lendo a faixa do jogo (posição sem print)", LogLevel.Ok); }
                 } else if (reading && (DateTime.Now - lastSeen).TotalSeconds > 120) {
                     reading = false;
                     Log("pulso: faixa fora de vista (jogo minimizado, encoberto ou fechado)", LogLevel.Info);
@@ -297,26 +303,46 @@ public class Engine {
                 foreach (PulseData d in found) {
                     int prev;
                     DateTime at;
-                    if (lastSeq.TryGetValue(d.Char, out prev) && prev == d.Seq) {
-                        if (flushed.Contains(d.Char) || !sentAt.TryGetValue(d.Char, out at) || (DateTime.Now - at).TotalSeconds < 6) continue;
-                        flushed.Add(d.Char);
-                    } else flushed.Remove(d.Char);
-                    sentAt[d.Char] = DateTime.Now;
-                    HttpResult r = Http.Send(Cfg, "POST", "/api/pulse", Encoding.UTF8.GetBytes(d.Json()), "application/json; charset=utf-8", 5000);
-                    if (r.Ok || (r.Status >= 400 && r.Status < 500 && !r.AuthFailed)) lastSeq[d.Char] = d.Seq;
-                    if (r.Ok) {
-                        Pulses++;
-                        LastPulse = DateTime.Now;
-                        if (failing) { failing = false; Log("pulso: voltou a enviar", LogLevel.Ok); }
-                    } else if (!failing) {
-                        failing = true;
-                        Log("pulso: o site não aceitou (" + Describe(r) + ")", LogLevel.Warn);
+                    if (!lastLocal.TryGetValue(d.Char, out prev) || prev != d.Seq) {
+                        lastLocal[d.Char] = d.Seq;
+                        var h = LocalPulse;
+                        if (h != null) try { h(d.Json()); } catch { }
                     }
+                    lock (gate) {
+                        if (sending) continue;
+                        double since = sentAt.TryGetValue(d.Char, out at) ? (DateTime.Now - at).TotalSeconds : double.MaxValue;
+                        if (lastSeq.TryGetValue(d.Char, out prev) && prev == d.Seq) {
+                            if (flushed.Contains(d.Char) || since < 6) continue;
+                            flushed.Add(d.Char);
+                        } else {
+                            if (since * 1000 < PulseSendMs) continue;
+                            flushed.Remove(d.Char);
+                        }
+                        sentAt[d.Char] = DateTime.Now;
+                        sending = true;
+                    }
+                    PulseData p = d;
+                    ThreadPool.QueueUserWorkItem(_ => {
+                        try {
+                            HttpResult r = Http.Send(Cfg, "POST", "/api/pulse", Encoding.UTF8.GetBytes(p.Json()), "application/json; charset=utf-8", 5000);
+                            if (r.Ok || (r.Status >= 400 && r.Status < 500 && !r.AuthFailed)) lock (gate) lastSeq[p.Char] = p.Seq;
+                            if (r.Ok) {
+                                Pulses++;
+                                LastPulse = DateTime.Now;
+                                if (failing) { failing = false; Log("pulso: voltou a enviar", LogLevel.Ok); }
+                            } else if (!failing) {
+                                failing = true;
+                                Log("pulso: o site não aceitou (" + Describe(r) + ")", LogLevel.Warn);
+                            }
+                        } catch (Exception e) {
+                            if (!failing) { failing = true; Log("pulso: " + e.Message, LogLevel.Warn); }
+                        } finally { lock (gate) sending = false; }
+                    });
                 }
             } catch (Exception e) {
                 if (!failing) { failing = true; Log("pulso: " + e.Message, LogLevel.Warn); }
             }
-            int wait = 1000 - (int)(DateTime.Now - t0).TotalMilliseconds;
+            int wait = PulseMs - (int)(DateTime.Now - t0).TotalMilliseconds;
             if (wait > 0) Thread.Sleep(wait);
         }
     }
