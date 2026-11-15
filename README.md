@@ -81,7 +81,9 @@ o login é automático (o programa usa o token dele). No navegador a posição t
 
 **Mapa por cima do jogo** (botão na janela do programa e no menu do ícone): uma janela pequena só com o mapa, seguindo
 você, que fica sempre na frente do jogo mesmo com o jogo em foco. Funciona com o jogo em janela ou em "tela cheia em
-janela" (na tela cheia exclusiva o jogo cobre tudo). Arraste e redimensione à vontade: ela lembra onde ficou. Só não a
+janela" (na tela cheia exclusiva o jogo cobre tudo). Ela não tem barra de título: no canto de cima à direita do mapa,
+discretos, ficam **⠿** (segure e arraste para mover) e **✕** (fechar); a borda fininha em volta também move e, nos
+lados e cantos, redimensiona. Ela lembra onde ficou. Só não a
 deixe em cima do canto superior esquerdo do jogo, onde fica a faixinha do pulso. A tecla Z mostra o resto do site.
 
 No ícone do WowPilot Sync (perto do relógio): **Abrir o site**, **Mapa por cima do jogo**, **Abrir o site no navegador**,

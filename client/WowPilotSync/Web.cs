@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.Web.WebView2.Core;
@@ -97,7 +98,8 @@ public class SiteForm : Form {
         StartPosition = FormStartPosition.CenterScreen;
         if (overlay) {
             Text = "WowPilot · mapa";
-            FormBorderStyle = FormBorderStyle.SizableToolWindow;   // barra fininha, fora da barra de tarefas e do Alt+Tab
+            // sem barra de título: só uma borda fina (arrastar = mover, cantos/lados = redimensionar); na página, ⠿ move e ✕ fecha
+            FormBorderStyle = FormBorderStyle.None;
             ShowInTaskbar = false;
             TopMost = true;
             MinimumSize = new Size(160, 120);
@@ -106,6 +108,7 @@ public class SiteForm : Form {
             FormClosing += (s, e) => SaveBounds();
         }
         BackColor = Color.FromArgb(17, 19, 24);
+        if (overlay) { Padding = new Padding(Edge); BackColor = Color.FromArgb(70, 76, 88); }
         web.Dock = DockStyle.Fill;
         web.DefaultBackgroundColor = BackColor;
         web.CreationProperties = new CoreWebView2CreationProperties { UserDataFolder = Path.Combine(configDir, "navegador") };
@@ -127,6 +130,16 @@ public class SiteForm : Form {
         CoreWebView2 core = web.CoreWebView2;
         core.Settings.IsStatusBarEnabled = false;
         core.Settings.IsZoomControlEnabled = true;
+        if (overlay) {
+            try { core.Settings.IsNonClientRegionSupportEnabled = true; } catch { }   // CSS app-region: drag no ⠿
+            core.WebMessageReceived += (s, e) => {
+                if (!Ours(e.Source)) return;
+                string m = null;
+                try { m = e.TryGetWebMessageAsString(); } catch { }
+                if (m == "fechar") Close();
+                else if (m == "mover") { ReleaseCapture(); SendMessage(Handle, 0xA1, (IntPtr)2, IntPtr.Zero); }   // WM_NCLBUTTONDOWN na "barra"
+            };
+        }
         // links para fora (Wowhead, downloads de outros sites, target=_blank): no navegador padrão
         core.NewWindowRequested += (s, e) => {
             e.Handled = true;
@@ -192,6 +205,20 @@ public class SiteForm : Form {
         CoreWebView2 core = web.CoreWebView2;
         if (core == null || !Ours(core.Source)) return;
         try { core.PostWebMessageAsJson("{\"kind\":\"pulse\",\"d\":" + json + "}"); } catch { }
+    }
+
+    const int Edge = 5;   // px da borda do mapa por cima (onde se pega para mover e redimensionar)
+    [DllImport("user32.dll")] static extern bool ReleaseCapture();
+    [DllImport("user32.dll")] static extern IntPtr SendMessage(IntPtr h, int msg, IntPtr w, IntPtr l);
+
+    // janela sem borda: a faixa de Edge px em volta do mapa responde como borda (cantos e lados redimensionam, o resto move)
+    protected override void WndProc(ref Message m) {
+        base.WndProc(ref m);
+        if (!overlay || m.Msg != 0x84 || (int)m.Result != 1) return;   // WM_NCHITTEST que caiu na área do formulário
+        Point p = PointToClient(new Point(unchecked((short)(long)m.LParam), unchecked((short)((long)m.LParam >> 16))));
+        int g = Edge * 2;
+        bool l = p.X < g, r = p.X >= ClientSize.Width - g, t = p.Y < g, b = p.Y >= ClientSize.Height - g;
+        m.Result = (IntPtr)(t && l ? 13 : t && r ? 14 : b && l ? 16 : b && r ? 17 : l ? 10 : r ? 11 : t ? 12 : b ? 15 : 2);
     }
 
     string BoundsFile { get { return Path.Combine(configDir, "mapa-por-cima.txt"); } }
