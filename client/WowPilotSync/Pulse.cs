@@ -97,8 +97,8 @@ public static class Pulse {
 
     // janelas do jogo visíveis → canto da área do jogo na tela. Classe "waApplication Window" no cliente atual (Retail e
     // Forever, testado 09/11/2026); "GxWindowClass" nos antigos; o título "World of Warcraft" cobre o resto.
-    static List<Point> GameOrigins() {
-        var found = new List<Point>();
+    static List<Rectangle> GameOrigins() {
+        var found = new List<Rectangle>();
         EnumWindows(delegate(IntPtr h, IntPtr _) {
             StringBuilder cls = new StringBuilder(64);
             GetClassName(h, cls, cls.Capacity);
@@ -110,25 +110,55 @@ public static class Pulse {
             RECT r;
             if (!GetClientRect(h, out r) || r.Right < COLS * CELL || r.Bottom < ROWS * CELL) return true;
             POINT p = new POINT();
-            if (ClientToScreen(h, ref p)) found.Add(new Point(p.X, p.Y));
+            if (ClientToScreen(h, ref p)) found.Add(new Rectangle(p.X, p.Y, r.Right, r.Bottom));
             return true;
         }, IntPtr.Zero);
         return found;
     }
 
-    // a faixa de cada janela do jogo à vista (encoberta, minimizada ou em tela cheia exclusiva: nada)
-    public static List<PulseData> ReadScreen() {
+    // o código do WowPilotLive no modo tela (addon WowPilotApp): 255 colunas × 2 px, até 40 linhas × 2 px, no mesmo
+    // canto da faixa (por cima dela enquanto está à vista)
+    public const int CODE_W = 640, CODE_H = 120;
+
+    // a faixa de cada janela do jogo à vista (encoberta, minimizada ou em tela cheia exclusiva: nada). Com `codes`, a
+    // captura cobre também o código e, sem faixa no canto (o código está por cima), tenta lê-lo.
+    public static List<PulseData> ReadScreen(List<Frame> codes) {
         var out_ = new List<PulseData>();
-        foreach (Point o in GameOrigins()) {
+        foreach (Rectangle o in GameOrigins()) {
             try {
-                using (Bitmap bmp = new Bitmap(COLS * CELL, ROWS * CELL, PixelFormat.Format24bppRgb)) {
+                int w = codes != null ? Math.Min(CODE_W, o.Width) : COLS * CELL;
+                int h = codes != null ? Math.Min(CODE_H, o.Height) : ROWS * CELL;
+                using (Bitmap bmp = new Bitmap(w, h, PixelFormat.Format24bppRgb)) {
                     using (Graphics g = Graphics.FromImage(bmp)) g.CopyFromScreen(o.X, o.Y, 0, 0, bmp.Size);
-                    PulseData d = Decode(bmp, 0, 0);
-                    if (d != null) out_.Add(d);
+                    Read(bmp, out_, codes);
                 }
             } catch { }
         }
         return out_;
+    }
+
+    // o canto capturado: a faixa; sem ela (o código está por cima), o código
+    static void Read(Bitmap bmp, List<PulseData> pulses, List<Frame> codes) {
+        PulseData d = Decode(bmp, 0, 0);
+        if (d != null) { pulses.Add(d); return; }
+        if (codes == null) return;
+        Frame f = Decoder.DecodeBitmap(bmp);
+        if (f != null) codes.Add(f);
+    }
+
+    // teste: o mesmo pedaço que o app copia da tela (CODE_W × CODE_H no canto), lido de uma imagem
+    public static int ScreenPngCli(string path) {
+        using (Bitmap src = new Bitmap(path))
+        using (Bitmap bmp = src.Clone(new Rectangle(0, 0, Math.Min(CODE_W, src.Width), Math.Min(CODE_H, src.Height)), PixelFormat.Format24bppRgb)) {
+            var pulses = new List<PulseData>();
+            var codes = new List<Frame>();
+            Read(bmp, pulses, codes);
+            foreach (PulseData p in pulses) Console.WriteLine("pulso " + p.Json());
+            foreach (Frame f in codes)
+                Console.WriteLine("codigo msg=" + f.Msg + " pagina=" + f.Page + "/" + f.Total + " tipo=" + f.Kind + " bytes=" + f.Chunk.Length
+                    + " adler=" + Decoder.Adler32(f.Chunk));
+            return pulses.Count + codes.Count > 0 ? 0 : 1;
+        }
     }
 
     // teste: decodifica a faixa no canto de uma imagem

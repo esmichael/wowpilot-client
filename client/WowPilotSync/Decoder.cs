@@ -222,6 +222,11 @@ public class Decoder {
         } catch (IndexOutOfRangeException) { return null; }
     }
 
+    // código lido direto da tela pelo app (sem print): o mesmo leitor sobre um pedaço da janela do jogo
+    public static Frame DecodeBitmap(Bitmap bmp) {
+        return new Decoder(bmp).Decode();
+    }
+
     // null = não é um print do WowPilot
     public static Frame DecodeFile(string path) {
         byte[] bytes = File.ReadAllBytes(path);  // não prende o arquivo (para poder apagar depois)

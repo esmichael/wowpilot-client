@@ -69,10 +69,18 @@ Comandos no jogo:
 | `/wpilot agora` | envia na hora (também como macro: `/run WowPilot_Send()`) |
 | `/wpilot intervalo N` | espera no mínimo N segundos entre envios automáticos (padrão 30, mínimo 5; `0` = só manual) |
 | `/wpilot pulso on\|off` | liga/desliga a faixinha no canto superior esquerdo que leva a posição ao site a cada segundo |
+| `/wpilot modo print\|tela` | `tela` (padrão com o programa 1.10+): o programa lê o código direto do jogo; `print`: sempre por captura de tela |
 
 A faixinha colorida fixa no canto superior esquerdo (cerca de 112×4 pixels) é o **pulso**: o WowPilot Sync lê
 esses pixels da janela do jogo 5 vezes por segundo, sem tirar print, e o mapa do site acompanha você quase em tempo real.
 Funciona com o jogo em janela ou em tela cheia em janela, à vista (minimizado ou coberto por outra janela, não dá).
+
+**Envio sem print (1.10+):** o programa também lê o código colorido dos envios direto da janela do jogo. O WowPilot Sync
+cria o addon **WowPilotApp** (só um aviso para o WowPilot; aparece na lista de addons) e, depois de entrar no jogo ou de um
+`/reload`, o código fica meio segundo no canto em vez de virar um print: o jogo não engasga gerando a imagem, nada vai
+para a pasta Screenshots e os dados chegam ao site em menos de um segundo. A cada 2 minutos ainda sai um print de
+garantia (se a janela do jogo estiver minimizada ou coberta, o programa não vê o código). `/wpilot modo print` volta ao
+jeito antigo; desligar o pulso nas configurações do programa também (ele apaga o WowPilotApp).
 
 Para ver o seu painel: botão **Abrir o site** na janela do programa, no menu do ícone perto do relógio ou no atalho
 **WowPilot**. Ele abre numa janela do próprio programa (o mesmo site, com o motor do Edge que já vem no Windows): ali a

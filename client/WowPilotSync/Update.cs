@@ -194,6 +194,48 @@ public static class AddonInstaller {
         return log;
     }
 
+    // addon WowPilotApp (só o app escreve; fica fora do git do addon): avisa ao WowPilot que o app lê o código direto da
+    // janela do jogo, e o addon troca o Screenshot() por segurar o código à vista (modo tela). Sem a leitura da tela
+    // (pulso desligado) a pasta sai e o addon volta aos prints. O jogo só lê ao entrar ou no /reload.
+    public static List<string> AppMarker(List<Flavor> flavors, bool on) {
+        var log = new List<string>();
+        Dictionary<string, byte[]> files = Embedded();
+        string iface = "## Interface: 120105, 16001";
+        if (files != null)
+            foreach (string line in System.Text.Encoding.UTF8.GetString(files["WowPilot.toc"]).Split('\n'))
+                if (line.Trim().StartsWith("## Interface:")) iface = line.Trim();
+        var utf8 = new System.Text.UTF8Encoding(false);
+        var marker = new Dictionary<string, byte[]> {
+            { "WowPilotApp.toc", utf8.GetBytes(iface + "\r\n## Title: WowPilot (app)\r\n## Notes: Criado pelo WowPilotSync: "
+                + "o app lê o código do WowPilot direto da tela (sem print).\r\n## Version: " + Http.Version + "\r\n\r\nApp.lua\r\n") },
+            { "App.lua", utf8.GetBytes("-- criado pelo WowPilotSync " + Http.Version + ": o app lê o código direto da tela (modo tela do WowPilotLive)\r\n"
+                + "WowPilotApp = { capture = 1, version = \"" + Http.Version + "\" }\r\n") },
+        };
+        foreach (Flavor f in flavors) {
+            if (Array.IndexOf(Products, (f.Product ?? "").ToLowerInvariant()) < 0) continue;
+            string addons = Path.Combine(f.Dir, "Interface", "AddOns"), dest = Path.Combine(addons, "WowPilotApp");
+            try {
+                if (!on) {
+                    if (Directory.Exists(dest)) { Directory.Delete(dest, true); log.Add("modo tela desligado no " + f.Name + " (no jogo: /reload)"); }
+                    continue;
+                }
+                if (!Directory.Exists(addons)) continue;
+                bool same = true;
+                foreach (var kv in marker) {
+                    string path = Path.Combine(dest, kv.Key);
+                    if (!File.Exists(path) || !System.Linq.Enumerable.SequenceEqual(File.ReadAllBytes(path), kv.Value)) { same = false; break; }
+                }
+                if (same) continue;
+                bool had = Directory.Exists(dest);
+                Write(dest, marker);
+                if (!had) log.Add("modo tela ligado no " + f.Name + ": o app lê o código direto do jogo, sem print (no jogo: /reload)");
+            } catch (Exception e) {
+                log.Add("não consegui ligar o modo tela no " + f.Name + ": " + e.Message);
+            }
+        }
+        return log;
+    }
+
     // grava arquivo a arquivo (.new e troca), para o jogo nunca ler um arquivo pela metade
     public static void Write(string dest, Dictionary<string, byte[]> files) {
         foreach (var kv in files) {

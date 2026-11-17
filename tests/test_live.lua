@@ -70,6 +70,30 @@ T["live: captura desenha o código, tira screenshot e restaura CVars"] = functio
     assert(not _G.WowPilotLiveCode:IsShown(), "código escondido após a captura")
 end
 
+T["live: com o app lendo a tela, o código fica à vista sem Screenshot(); print de garantia a cada 2 min"] = function()
+    boot()
+    run_timers()
+    local before = SCREENSHOTS
+    _G.WowPilotApp = { capture = 1 }
+    assert(NS.Live.appReads(), "app detectado")
+    slash("agora")                                   -- o print do login vale como garantia: este vai pela tela
+    assert(SCREENSHOTS == before, "sem Screenshot() no modo tela")
+    assert(_G.WowPilotLiveCode:IsShown(), "código à vista para o app ler")
+    run_timers()
+    assert(not _G.WowPilotLiveCode:IsShown(), "escondido depois de HOLD")
+    NOW = NOW + 200                                  -- passou o intervalo da garantia
+    slash("agora")
+    run_timers()
+    assert(SCREENSHOTS == before + 1, "nova garantia por print: " .. (SCREENSHOTS - before))
+    fire("SCREENSHOT_SUCCEEDED")
+    slash("modo print")
+    assert(not NS.Live.appReads(), "/wpilot modo print desliga")
+    slash("modo tela")
+    assert(NS.Live.appReads(), "/wpilot modo tela volta")
+    _G.WowPilotApp = nil
+    assert(not NS.Live.appReads(), "sem o app: print")
+end
+
 T["live: snapshot completo tem resumo, Vault, moedas, equipamento e bolsas"] = function()
     boot()
     -- equipamento (players) e nomes de itens só vão quando mudam (ou a cada 5 min): o envio do login já os levou,

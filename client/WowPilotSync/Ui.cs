@@ -41,6 +41,7 @@ public static class Program {
         Updater.Cleanup(Application.ExecutablePath);
         bool openSite = opt.ContainsKey("open-site");   // atalho "WowPilot": a janela do site (no app)
         if (opt.ContainsKey("pulse-png")) return Pulse.DecodePngCli(opt["pulse-png"]);   // testes: faixa do pulso numa imagem
+        if (opt.ContainsKey("screen-png")) return Pulse.ScreenPngCli(opt["screen-png"]);   // testes: código lido como da tela
         if (opt.ContainsKey("list-games")) return ListGames(opt, dir);
         if (opt.ContainsKey("update")) return UpdateCli(opt, dir);
         if (opt.ContainsKey("install-addon")) {   // testes/suporte: instala/atualiza o addon embutido e sai
@@ -80,7 +81,7 @@ public static class Program {
 
     static bool IsValued(string a) {
         switch (a.Substring(2).ToLowerInvariant()) {
-            case "server": case "token": case "wow": case "screenshots": case "config-dir": case "links-dir": case "after-update": case "api": case "pulse-png": return true;
+            case "server": case "token": case "wow": case "screenshots": case "config-dir": case "links-dir": case "after-update": case "api": case "pulse-png": case "screen-png": return true;
         }
         return false;
     }

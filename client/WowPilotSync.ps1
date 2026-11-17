@@ -46,7 +46,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$ClientVersion = '1.9.2'
+$ClientVersion = '1.10.0'
 $ConfigFile = Join-Path $ConfigDir 'config.json'
 $PendingDir = Join-Path $ConfigDir 'pendentes'
 New-Item -ItemType Directory -Force -Path $ConfigDir, $PendingDir | Out-Null
@@ -306,6 +306,11 @@ public class Decoder {
             if (Adler32(f.Chunk) != sum || f.Page >= Math.Max(1, f.Total)) return null;
             return f;
         } catch (IndexOutOfRangeException) { return null; }
+    }
+
+    // código lido direto da tela pelo app (sem print): o mesmo leitor sobre um pedaço da janela do jogo
+    public static Frame DecodeBitmap(Bitmap bmp) {
+        return new Decoder(bmp).Decode();
     }
 
     // null = não é um print do WowPilot

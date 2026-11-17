@@ -271,6 +271,21 @@ def check_update(check, exe: Path):
         shutil.rmtree(base, ignore_errors=True)
 
 
+def check_screen(check, exe: Path, imgs, tmp: Path):
+    """Modo tela: o app copia só o canto (CODE_W × CODE_H) da janela do jogo e lê o código ali, sem print."""
+    from PIL import Image
+    for i, img in enumerate(imgs):
+        p = tmp / f"tela{i}.png"
+        img.save(p, "PNG")
+        r = subprocess.run([str(exe), "--screen-png", win_path(p)], capture_output=True, text=True, timeout=60)
+        check(f"WowPilotSync.exe: código lido do canto da tela ({i + 1}/{len(imgs)})",
+              r.returncode == 0 and r.stdout.startswith("codigo "), r.stdout + r.stderr)
+    p = tmp / "tela_vazia.png"
+    Image.new("RGB", (800, 600), (40, 60, 80)).save(p, "PNG")
+    r = subprocess.run([str(exe), "--screen-png", win_path(p)], capture_output=True, text=True, timeout=60)
+    check("WowPilotSync.exe: canto sem código nem faixa: nada", r.returncode == 1 and not r.stdout.strip(), r.stdout)
+
+
 def check_addon_install(check, exe: Path):
     """Addon embutido no .exe: instala no Retail/Forever, atualiza versão velha, não mexe em clone do git nem no PTR."""
     temp = subprocess.run(["cmd.exe", "/c", "echo %TEMP%"], capture_output=True, text=True, errors="replace").stdout.strip()
@@ -390,6 +405,7 @@ def main():
             check_shortcuts(check, exe)
             check_update(check, exe)
             check_addon_install(check, exe)
+            check_screen(check, exe, [small[0], pages[0], pages[-1], zipped[0]], tmp)
     else:
         print("  (sem powershell.exe: clientes não testados)")
     shutil.rmtree(tmp, ignore_errors=True)

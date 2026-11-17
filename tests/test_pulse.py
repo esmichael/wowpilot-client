@@ -104,7 +104,7 @@ def main():
         check("personagem = adler32 de Nome-Reino", d["char"] == adler32(me.encode()), str(d["char"]))
         check("mapa e posição no mapa", d["ui"] == 1441 and abs(d["x"] - 42.14) < 0.01 and abs(d["y"] - 33.8) < 0.01, str(d))
         check("posição no mundo com sinal (jd × 10)", d["pos"] == [-2287.5, -4958.2, -66.5], str(d["pos"]))
-        check("direção, vida %, nível", abs(d["facing"] / 256 * 2 * math.pi - 1.5) < 0.03 and d["hp"] == 71 and d["lvl"] == 27, str(d))
+        check("direção, vida (255 = protegida no jogo), nível", abs(d["facing"] / 256 * 2 * math.pi - 1.5) < 0.03 and d["hp"] == 255 and d["lvl"] == 27, str(d))
         check("estado: montado, direção e posição ok; vivo", d["flags"] == 32 + 64 + 128, str(d["flags"]))
         seq = d["seq"]
         lua.execute("NS.Pulse.tick()")
@@ -131,7 +131,7 @@ def main():
             except ValueError:
                 j = None
             check("WowPilotSync.exe lê a faixa (mesmos valores)", j is not None and j["ui"] == 1441 and j["pos"] == [-2287.5, -4958.2, -66.5]
-                  and j["hp"] == 71 and j["flags"] == 224 and j["deaths"] == 0 and abs(j["x"] - 42.14) < 0.01, r.stdout + r.stderr)
+                  and "hp" not in j and j["flags"] == 224 and j["deaths"] == 0 and abs(j["x"] - 42.14) < 0.01, r.stdout + r.stderr)
     else:
         print("  (sem client/WowPilotSync.exe ou cmd.exe: só o leitor de referência)")
     print("ok" if not fails else f"{fails} falha(s)")

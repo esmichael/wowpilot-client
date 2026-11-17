@@ -1,6 +1,9 @@
 -- WowPilot Live — envia os dados ao site sem /reload.
 -- Desenha um código colorido no canto superior esquerdo da tela, chama Screenshot() e esconde o código.
 -- O cliente WowPilotSync.ps1 (Windows) vigia a pasta Screenshots, decodifica, envia ao site e apaga o print.
+-- Modo tela (app 1.10+): o WowPilotSync cria o addon WowPilotApp (global WowPilotApp.capture) e lê o código direto da
+-- janela do jogo a cada 0,2 s, como o pulso. Aí o código fica HOLD s na tela, sem Screenshot() (sem a engasgada do
+-- PNG nem o arquivo de ~3 MB); um print de garantia sai a cada FALLBACK s (janela minimizada/encoberta perde envios).
 --
 -- Código (v3): 255 colunas, células de CELL px físicos, BITS bits por célula (64 cores: 4 níveis por canal).
 --   linha 0 e coluna 0 = padrão de tempo preto/branco (o leitor mede o tamanho da célula)
@@ -58,6 +61,15 @@ local simcDirty = true         -- recalcula o SimC na próxima captura (login, t
 local savedCVars
 local lastPrint = -10          -- GetTime() do último Screenshot()
 local GAP = 1.1                -- o nome do arquivo tem precisão de segundos: 2 prints no mesmo segundo colidem
+local HOLD = 0.5               -- modo tela: o código fica na tela esse tempo (o app lê a cada 0,2 s)
+local SCREEN_GAP = 0.3         -- modo tela: entre uma página e a seguinte
+local FALLBACK = 120           -- modo tela: um print de garantia a cada tanto (o app pode não estar vendo a janela)
+local lastShot = -1e9          -- GetTime() do último envio por print (no modo tela)
+
+-- o app lê o código direto da tela? (addon WowPilotApp, criado pelo WowPilotSync; "/wpilot modo print" desliga)
+function Live.appReads()
+    return type(WowPilotApp) == "table" and WowPilotApp.capture and true and (not cfg or cfg.mode ~= "print") or false
+end
 
 ------------------------------------------------------------
 -- Codificação
@@ -515,7 +527,7 @@ local function finish(token)
     busy, current = false, nil
     if frame then frame:Hide() end
     if #queue > 0 then
-        C_Timer.After(GAP, pump)  -- próxima página
+        C_Timer.After(queue[1].via == "tela" and SCREEN_GAP or GAP, pump)  -- próxima página
         return
     end
     if savedCVars then
@@ -529,13 +541,20 @@ end
 pump = function()
     if busy or #queue == 0 then return end
     if InCombatLockdown() then waitCombat = true; return end  -- retoma no fim do combate
-    local wait = GAP - (GetTime() - lastPrint)
-    if wait > 0 then return C_Timer.After(wait, pump) end
+    if queue[1].via ~= "tela" then
+        local wait = GAP - (GetTime() - lastPrint)
+        if wait > 0 then return C_Timer.After(wait, pump) end
+    end
     local code = table.remove(queue, 1)
     Live.draw(code)
     busy = true
     local token = {}
     current = token
+    if code.via == "tela" then   -- o app lê da tela: só segura o código à vista
+        frame:Show()
+        C_Timer.After(HOLD, function() finish(token) end)
+        return
+    end
     -- PNG sempre: JPEG destrói as cores do código
     savedCVars = savedCVars or { screenshotFormat = setCVar("screenshotFormat", "png"),
                                  screenshotQuality = setCVar("screenshotQuality", "10") }
@@ -558,12 +577,17 @@ function Live.capture(reason, forceSimc)
         return false
     end
     local codes, raw, sent = Live.frames(KIND_FULL, payload)
-    for _, c in ipairs(codes) do queue[#queue + 1] = c end
+    local now = GetTime()
+    local via = (Live.appReads() and now - lastShot < FALLBACK) and "tela" or "print"
+    if via == "print" then lastShot = now end
+    Live.via = via
+    for _, c in ipairs(codes) do c.via = via; queue[#queue + 1] = c end
     sched.last, sched.dirty = time(), false
     pump()
     if reason == "manual" then
-        ns.say(string.format("envio #%d: %d bytes%s, %d print(s)", cfg.seq, raw,
-            sent < raw and string.format(" → %d comprimido", sent) or "", #codes))
+        ns.say(string.format("envio #%d: %d bytes%s, %d %s", cfg.seq, raw,
+            sent < raw and string.format(" → %d comprimido", sent) or "", #codes,
+            via == "tela" and "página(s) lida(s) pelo app" or "print(s)"))
     end
     return true
 end
@@ -717,13 +741,20 @@ function Live.command(arg)
         ns.say(cfg.interval == 0 and "envio automático desligado (use /wpilot agora)"
             or ("envio automático no máximo a cada " .. cfg.interval .. "s"))
         if cfg.interval > 0 then schedule(DEBOUNCE) end
+    elseif sub == "modo" and (val == "print" or val == "tela") then
+        cfg.mode = val == "print" and "print" or nil
+        ns.say(val == "print" and "envio sempre por print (Screenshot)"
+            or (Live.appReads() and "envio pela tela: o app lê o código direto da janela (print de garantia a cada "
+                .. FALLBACK .. " s)" or "modo tela pedido, mas o app 1.10+ não foi detectado (addon WowPilotApp): segue por print"))
     else
-        ns.say(string.format("envio %s · último #%d %s", cfg.interval == 0 and "só manual"
+        ns.say(string.format("envio %s · último #%d %s · %s", cfg.interval == 0 and "só manual"
             or ("a cada " .. cfg.interval .. "s (no máximo)"), cfg.seq or 0,
-            sched.last > 0 and date("às %H:%M:%S", sched.last) or "(nenhum nesta sessão)"))
+            sched.last > 0 and date("às %H:%M:%S", sched.last) or "(nenhum nesta sessão)",
+            Live.appReads() and "lido da tela pelo app" or "por print"))
         print("  /wpilot agora          envia já (macro: /run WowPilot_Send())")
         print("  /wpilot intervalo N    segundos mínimos entre envios automáticos (padrão 30, mínimo 5; 0 = só manual)")
         print("  /wpilot pulso on|off   faixa no canto que leva a posição ao site a cada segundo, sem print")
+        print("  /wpilot modo print|tela  print sempre, ou o app lê o código da tela (padrão com o app 1.10+)")
         print("  /wpilot ajustes        configurações sugeridas do jogo (placas de nome) · /wpilot ajustes aplicar")
         print("  /wpilot vender IDs     com o vendedor aberto, vende esses itens (copie a lista na janela de bolsas do site)")
         print("  /wpilot api            lista o que o jogo oferece para addons (e o que vem protegido) · depois /reload")

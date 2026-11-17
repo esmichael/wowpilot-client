@@ -91,7 +91,7 @@ public class HttpResult {
 }
 
 public static class Http {
-    public const string Version = "1.9.2";
+    public const string Version = "1.10.0";
 
     static Http() {
         try { ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12; } catch { }
@@ -165,6 +165,9 @@ public class Engine {
     public int Pending;
 
     readonly Assembler assembler = new Assembler();
+    readonly object asmLock = new object(), sendLock = new object();
+    readonly Dictionary<string, DateTime> recent = new Dictionary<string, DateTime>();   // páginas já lidas
+    public int ScreenCodes;   // envios lidos direto da tela (modo tela)
     readonly Dictionary<string, string> seen = new Dictionary<string, string>();
     DateTime lastChat = DateTime.MinValue, lastPendingTry = DateTime.MinValue;
     Thread thread, pulseThread;
@@ -266,6 +269,7 @@ public class Engine {
 
     void Run() {
         if (!Cfg.NoAddonInstall) foreach (string line in AddonInstaller.Sync(Flavors)) Log(line, LogLevel.Ok);
+        foreach (string line in AddonInstaller.AppMarker(Flavors, !Cfg.NoPulse)) Log(line, LogLevel.Ok);
         if (!Connect()) return;
         Log("vigiando…", LogLevel.Info);
         while (!stop) {
@@ -292,7 +296,9 @@ public class Engine {
         while (!stop) {
             DateTime t0 = DateTime.Now;
             try {
-                List<PulseData> found = Cfg.Complete ? Pulse.ReadScreen() : new List<PulseData>();
+                var codes = new List<Frame>();
+                List<PulseData> found = Cfg.Complete ? Pulse.ReadScreen(codes) : new List<PulseData>();
+                foreach (Frame f in codes) OnScreenCode(f);
                 if (found.Count > 0) {
                     lastSeen = DateTime.Now;
                     if (!reading) { reading = true; Log("pulso: lendo a faixa do jogo (posição sem print)", LogLevel.Ok); }
@@ -347,6 +353,53 @@ public class Engine {
         }
     }
 
+    // código lido da tela (o addon no modo tela segura cada página ~0,5 s): junta as páginas e envia em segundo plano
+    void OnScreenCode(Frame f) {
+        if (!FirstTime(f)) return;
+        if (ScreenCodes == 0 && f.Page == 0) Log("código: lendo direto da tela do jogo (sem print)", LogLevel.Ok);
+        byte[] data;
+        try { data = Assemble(f); } catch (Exception e) { Log("mensagem inválida lida da tela: " + e.Message, LogLevel.Warn); return; }
+        if (data == null) return;
+        ScreenCodes++;
+        ThreadPool.QueueUserWorkItem(_ => {
+            try { Deliver(f, data, null); } catch (Exception e) { Log("erro: " + e.Message, LogLevel.Error); }
+        });
+    }
+
+    // a mesma página de novo (o app a vê 2–3 vezes enquanto fica na tela; o print de garantia pode repetir uma já
+    // lida): ignora
+    bool FirstTime(Frame f) {
+        string key = f.Msg + "/" + f.Kind + "/" + f.Page + "/" + f.Total + "/" + f.Flags + "/" + Decoder.Adler32(f.Chunk);
+        lock (recent) {
+            foreach (string k in recent.Where(kv => (DateTime.Now - kv.Value).TotalMinutes > 10).Select(kv => kv.Key).ToList())
+                recent.Remove(k);
+            if (recent.ContainsKey(key)) return false;
+            recent[key] = DateTime.Now;
+            return true;
+        }
+    }
+
+    byte[] Assemble(Frame f) { lock (asmLock) return assembler.Add(f); }
+
+    // mensagem completa → site (ou pendentes). shot = nome do print; null = lida da tela
+    void Deliver(Frame frame, byte[] data, string shot) {
+        if (frame.Kind != 3) return;
+        if (!Cfg.SendChat) data = Decoder.DropKey(data, "chat");
+        lock (sendLock) {
+            if (SendSnapshot(data)) {
+                Sent++;
+                LastSent = DateTime.Now;
+                Log(string.Format("enviado #{0}: {1:N1} KB ({2} cores, {3})", Sent, data.Length / 1024.0, 1 << frame.Bits,
+                    shot == null ? "lido da tela" : Math.Max(1, frame.Total) + " print(s)"), LogLevel.Ok);
+                if (State != SyncState.Ok && User != null) SetState(SyncState.Ok, "conectado como " + User);
+                else Fire();
+            } else {
+                File.WriteAllBytes(Path.Combine(PendingDir, DateTime.Now.ToString("yyyyMMdd_HHmmss_fff") + ".json"), data);
+                CountPending();
+            }
+        }
+    }
+
     static string Describe(HttpResult r) {
         return r.Status > 0 ? "HTTP " + r.Status : r.Error;
     }
@@ -379,28 +432,18 @@ public class Engine {
         Frame frame = null;
         try { frame = Decoder.DecodeFile(f.FullName); } catch (Exception e) { Log("erro lendo " + f.Name + ": " + e.Message, LogLevel.Warn); }
         if (frame == null) return;   // print normal
+        bool first = FirstTime(frame);
         byte[] data = null;
-        try { data = assembler.Add(frame); } catch (Exception e) { Log("mensagem inválida em " + f.Name + ": " + e.Message, LogLevel.Warn); }
+        if (first) try { data = Assemble(frame); } catch (Exception e) { Log("mensagem inválida em " + f.Name + ": " + e.Message, LogLevel.Warn); }
         if (!Cfg.KeepScreenshots) {
             try { f.Delete(); } catch { Log("não apaguei " + f.Name, LogLevel.Warn); }
         }
+        if (!first) return;   // a mesma página já veio lida da tela
         if (data == null) {
             if (frame.Total > 1) Log(string.Format("página {0}/{1} ({2})", frame.Page + 1, frame.Total, f.Name), LogLevel.Info);
             return;
         }
-        if (frame.Kind != 3) return;
-        if (!Cfg.SendChat) data = Decoder.DropKey(data, "chat");
-        if (SendSnapshot(data)) {
-            Sent++;
-            LastSent = DateTime.Now;
-            Log(string.Format("enviado #{0}: {1:N1} KB ({2} cores, {3} print(s))", Sent, data.Length / 1024.0,
-                1 << frame.Bits, Math.Max(1, frame.Total)), LogLevel.Ok);
-            if (State != SyncState.Ok && User != null) SetState(SyncState.Ok, "conectado como " + User);
-            else Fire();
-        } else {
-            File.WriteAllBytes(Path.Combine(PendingDir, DateTime.Now.ToString("yyyyMMdd_HHmmss_fff") + ".json"), data);
-            CountPending();
-        }
+        Deliver(frame, data, f.Name);
     }
 
     bool SendSnapshot(byte[] data) {
@@ -425,6 +468,10 @@ public class Engine {
     }
 
     void SendPending() {
+        lock (sendLock) SendPendingLocked();
+    }
+
+    void SendPendingLocked() {
         foreach (string p in Directory.GetFiles(PendingDir, "*.json").OrderBy(x => x, StringComparer.Ordinal)) {
             if (stop) break;
             if (!SendSnapshot(File.ReadAllBytes(p))) break;
