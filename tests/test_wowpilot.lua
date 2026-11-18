@@ -116,4 +116,26 @@ T["TomTom: o alvo da seta vai como destino (aviso ArrowTargetChanged; sem aviso,
     _G.TomTom = nil
 end
 
+T["pesca: lances, saque de pesca, iscas e sessão"] = function()
+    boot()
+    assert(NS.fishInfo() == nil, "sem pesca: nada")
+    _G.GetSubZoneText = function() return "Baía das Tempestades" end
+    _G.GetRealZoneText = function() return "Azshara" end
+    NS.onFishCast(18248); NS.onFishCast(18248); NS.onFishCast(12345)   -- outra magia não conta
+    NS.onLure(8089)
+    _G.IsFishingLoot = function() return true end
+    _G.GetNumLootItems = function() return 1 end
+    _G.GetLootSlotLink = function() return "|cffffffff|Hitem:13888::::::::42|h[Lagosta]|h|r" end
+    _G.GetLootSlotInfo = function() return nil, "Lagosta", 1 end
+    NS.onFishLoot()
+    _G.IsFishingLoot = function() return false end
+    NS.onFishLoot()   -- saque que não é de pesca: ignora
+    local f = NS.fishInfo()
+    assert(f.casts == 2 and f.loots == 1, "2 lances, 1 fisgado")
+    assert(f.items[1][1] == 13888 and f.items[1][2] == 1, "lagosta")
+    assert(f.lures[1][1] == 6533 and f.lures[1][2] == 1, "Aquadinâmico")
+    assert(f.sub == "Baía das Tempestades" and f.zone == "Azshara" and f.active == true)
+    _G.IsFishingLoot, _G.GetNumLootItems, _G.GetLootSlotLink, _G.GetLootSlotInfo, _G.GetSubZoneText, _G.GetRealZoneText = nil, nil, nil, nil, nil, nil
+end
+
 return T

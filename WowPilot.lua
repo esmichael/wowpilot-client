@@ -1185,6 +1185,7 @@ local function extras()
         if #poi > 0 then out.poi = poi end
     end
     out.way = tomtomWay()
+    out.fish = ns.fishInfo and ns.fishInfo() or nil   -- definido mais abaixo (rastreador de pesca)
     out.taxi = taxiList()
     out.taxiV = out.taxi and TAXI_V or nil   -- o site ignora listas sem isso (até a 1.7.0: com os não aprendidos)
     return out
@@ -1223,6 +1224,88 @@ ns.GAME = GAME
 local OBSOLETE = { "last", "history", "chars", "syncSeq", "button", "hideButton", "currencies", "chatChannels",
                    "autoCombatLog", "seq", "auto", "hide", "chatlog" }  -- chaves de versões antigas (≤ 0.9)
 
+------------------------------------------------------------
+-- Pesca: sessão atual (lances, o que veio só do saque de pesca, iscas usadas, onde) para o lucro no site e para o
+-- XP/h ignorar o tempo pescando. Sessão nova depois de FISH_GAP s sem pescar; guarda as últimas FISH_KEEP.
+------------------------------------------------------------
+local FISH_GAP, FISH_KEEP, FISH_ACTIVE = 900, 5, 120
+local FISH_SPELLS = { [7620] = true, [7731] = true, [7732] = true, [18248] = true, [33095] = true, [51294] = true,
+                      [88868] = true, [131474] = true, [110410] = true }
+-- magia da isca → item (Miçanga Brilhosa, Reptantes, Pega-peixes Aquadinâmico, Iscas Brilhantes, Peixescópio, Verme)
+local LURE_ITEM = { [8087] = 6529, [8088] = 6530, [8089] = 6533, [8090] = 6532, [8532] = 6811, [9092] = 7307 }
+
+local function fishSession(now)
+    db.fishing = db.fishing or { sessions = {} }
+    local F = db.fishing
+    local cur = F.cur
+    if cur and now - (cur.last or cur.start) > FISH_GAP then
+        table.insert(F.sessions, cur)
+        while #F.sessions > FISH_KEEP do table.remove(F.sessions, 1) end
+        cur = nil
+    end
+    if not cur then
+        cur = { start = now, last = now, casts = 0, loots = 0, items = {}, lures = {} }
+        F.cur = cur
+    end
+    return cur
+end
+
+local function fishWhere(cur)
+    local sub = GetSubZoneText and plain(safe(GetSubZoneText)) or nil
+    local zone = GetRealZoneText and plain(safe(GetRealZoneText)) or nil
+    cur.zone, cur.sub = zone, (sub ~= "" and sub) or nil
+end
+
+local function onFishCast(spellID)
+    if not db or not FISH_SPELLS[spellID] then return end
+    local now = time()
+    local cur = fishSession(now)
+    cur.casts, cur.last = cur.casts + 1, now
+    fishWhere(cur)
+end
+
+local function onLure(spellID)
+    local item = db and LURE_ITEM[spellID]
+    if not item then return end
+    local now = time()
+    local cur = fishSession(now)
+    cur.lures[item] = (cur.lures[item] or 0) + 1
+    cur.last = now
+end
+
+local function onFishLoot()
+    if not db or not (IsFishingLoot and safe(IsFishingLoot)) then return end
+    local now = time()
+    local cur = fishSession(now)
+    cur.loots, cur.last = cur.loots + 1, now
+    for i = 1, (GetNumLootItems and safe(GetNumLootItems) or 0) do
+        local link = GetLootSlotLink and safe(GetLootSlotLink, i)
+        local id = link and tonumber(link:match("item:(%d+)"))
+        if id then
+            local qty = GetLootSlotInfo and select(3, safe(GetLootSlotInfo, i))
+            cur.items[id] = (cur.items[id] or 0) + (num(qty) or 1)
+        end
+    end
+    fishWhere(cur)
+end
+
+-- para o site: a sessão atual (ou a última, se terminou há pouco) e se está pescando agora
+local function fishInfo()
+    local F = db and db.fishing
+    if not F then return nil end
+    local now = time()
+    local cur = F.cur
+    if cur and now - (cur.last or cur.start) > FISH_GAP then cur = nil end
+    cur = cur or F.sessions[#F.sessions]
+    if not cur or now - (cur.last or cur.start) > 6 * 3600 then return nil end
+    local items, lures = {}, {}
+    for id, n in pairs(cur.items or {}) do items[#items + 1] = { id, n } end
+    for id, n in pairs(cur.lures or {}) do lures[#lures + 1] = { id, n } end
+    return { start = cur.start, last = cur.last, casts = cur.casts, loots = cur.loots, items = items, lures = lures,
+             zone = cur.zone or NULL, sub = cur.sub or NULL, active = (now - (cur.last or 0)) <= FISH_ACTIVE }
+end
+ns.fishInfo, ns.onFishCast, ns.onFishLoot, ns.onLure = fishInfo, onFishCast, onFishLoot, onLure
+
 local f = CreateFrame("Frame")
 f:RegisterEvent("ADDON_LOADED")
 f:RegisterEvent("PLAYER_LOGIN")
@@ -1243,9 +1326,11 @@ f:SetScript("OnEvent", function(_, event, arg1, ...)
         for _, ev in ipairs({ "PLAYER_REGEN_ENABLED", "BANKFRAME_OPENED", "GROUP_ROSTER_UPDATE", "INSPECT_READY",
                               "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "CHALLENGE_MODE_START",
                               "PLAYER_LOGOUT", "CHALLENGE_MODE_COMPLETED", "TIME_PLAYED_MSG", "PLAYER_DEAD",
-                              "PLAYER_TARGET_CHANGED", "TAXIMAP_OPENED" }) do
+                              "PLAYER_TARGET_CHANGED", "TAXIMAP_OPENED", "LOOT_OPENED" }) do
             pcall(f.RegisterEvent, f, ev)
         end
+        pcall(f.RegisterUnitEvent, f, "UNIT_SPELLCAST_CHANNEL_START", "player")   -- pesca (lance)
+        pcall(f.RegisterUnitEvent, f, "UNIT_SPELLCAST_SUCCEEDED", "player")       -- isca colocada na vara
         if GAME ~= "retail" and RequestTimePlayed then
             C_Timer.After(6, function() if not played then pcall(RequestTimePlayed) end end)
         end
@@ -1281,6 +1366,15 @@ f:SetScript("OnEvent", function(_, event, arg1, ...)
 
     elseif event == "TAXIMAP_OPENED" then
         pcall(scanTaxi)
+
+    elseif event == "UNIT_SPELLCAST_CHANNEL_START" then
+        pcall(onFishCast, select(2, ...))
+
+    elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
+        pcall(onLure, select(2, ...))
+
+    elseif event == "LOOT_OPENED" then
+        pcall(onFishLoot)
 
     elseif event == "TIME_PLAYED_MSG" then
         ns.onTimePlayed(arg1, ...)
