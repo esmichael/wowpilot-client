@@ -96,4 +96,24 @@ T["grupos: sessão registra entradas, saídas, local e fecha ao sair do grupo"] 
     _G.C_ChallengeMode = CM
 end
 
+T["TomTom: o alvo da seta vai como destino (aviso ArrowTargetChanged; sem aviso, o ponto mais perto)"] = function()
+    boot()
+    assert(NS.tomtomWay() == nil, "sem TomTom: nada")
+    local cb
+    _G.TomTom = {
+        RegisterCallback = function(owner, ev, fn) assert(ev == "ArrowTargetChanged"); cb = fn end,
+        IsCrazyArrowEmpty = function() return false end,
+        GetClosestWaypoint = function() return { 1447, 0.542, 0.583, title = "Baía" } end,
+    }
+    local w = NS.tomtomWay()
+    assert(w[1] == 1447 and math.abs(w[2] - 54.2) < 1e-6 and math.abs(w[3] - 58.3) < 1e-6 and w[4] == "Baía", "sem aviso: o mais perto")
+    cb("ArrowTargetChanged", { 1443, 0.2, 0.75, title = "Armadilha" })
+    w = NS.tomtomWay()
+    assert(w[1] == 1443 and w[4] == "Armadilha", "o alvo avisado vale")
+    cb("ArrowTargetChanged", nil)
+    TomTom.IsCrazyArrowEmpty = function() return true end
+    assert(NS.tomtomWay() == nil, "seta sem alvo: sem destino")
+    _G.TomTom = nil
+end
+
 return T

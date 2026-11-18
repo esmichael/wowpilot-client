@@ -1113,6 +1113,27 @@ local function taxiList()
     return #out > 0 and out or nil
 end
 
+-- seta do TomTom (/way): o alvo dela vai ao site e vira o destino da rota no lugar do passo do RXP (some quando a
+-- seta fica sem alvo). Aviso público "ArrowTargetChanged" do TomTom; sem ele (versões antigas), o ponto mais perto
+-- enquanto a seta tem alvo. uid = { mapa, x 0–1, y 0–1, title = nome }
+local tomtomTarget, tomtomHooked
+local function tomtomWay()
+    local T = _G.TomTom
+    if type(T) ~= "table" then return nil end
+    if not tomtomHooked and type(T.RegisterCallback) == "function" then
+        tomtomHooked = true
+        pcall(T.RegisterCallback, ns, "ArrowTargetChanged", function(_, uid) tomtomTarget = uid end)
+    end
+    local uid = tomtomTarget
+    if type(uid) ~= "table" and type(T.IsCrazyArrowEmpty) == "function" and safe(T.IsCrazyArrowEmpty, T) == false
+            and type(T.GetClosestWaypoint) == "function" then
+        uid = safe(T.GetClosestWaypoint, T)
+    end
+    if type(uid) ~= "table" or not num(uid[1]) or not num(uid[2]) or not num(uid[3]) then return nil end
+    return { uid[1], uid[2] * 100, uid[3] * 100, type(uid.title) == "string" and uid.title:sub(1, 80) or NULL }
+end
+ns.tomtomWay = tomtomWay
+
 -- outras posições que o jogo dá a addons: direção, corpo, alfinete do mapa, grupo, POIs de quest do próprio jogo
 local function extras()
     local M = C_Map
@@ -1163,6 +1184,7 @@ local function extras()
         end
         if #poi > 0 then out.poi = poi end
     end
+    out.way = tomtomWay()
     out.taxi = taxiList()
     out.taxiV = out.taxi and TAXI_V or nil   -- o site ignora listas sem isso (até a 1.7.0: com os não aprendidos)
     return out
