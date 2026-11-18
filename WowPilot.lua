@@ -1306,6 +1306,47 @@ local function fishInfo()
 end
 ns.fishInfo, ns.onFishCast, ns.onFishLoot, ns.onLure = fishInfo, onFishCast, onFishLoot, onLure
 
+-- Botão de pesca (macro "/click WowPilotPesca"): cada clique faz UMA coisa (o jogo só deixa uma ação protegida por
+-- clique), nesta ordem: abre um marisco da bolsa; põe a melhor isca se a vara está sem; lança a linha.
+-- A decisão é feita antes do clique (PreClick), fora de combate (em combate o botão fica como estava).
+local CLAMS = { 7973, 15874, 5524, 5523 }                    -- Marisco Boca-grande, de Casca Mole, Grosso, Pequeno
+local LURES = { 6533, 6532, 7307, 6811, 6530, 6529 }         -- da maior para a menor (+100, +75, +75, +50, +50, +25)
+local function itemCount(id)
+    local fn = (C_Item and C_Item.GetItemCount) or GetItemCount
+    return fn and num(safe(fn, id)) or 0
+end
+local function fishAction()
+    for _, id in ipairs(CLAMS) do
+        if itemCount(id) > 0 then return "item", "item:" .. id, "marisco" end
+    end
+    local hasLure = GetWeaponEnchantInfo and safe(GetWeaponEnchantInfo)
+    if not hasLure then
+        for _, id in ipairs(LURES) do
+            if itemCount(id) > 0 then return "macro", "/use item:" .. id .. "\n/use 16", "isca" end
+        end
+    end
+    local name = (C_Spell and C_Spell.GetSpellName and safe(C_Spell.GetSpellName, 7620))
+        or (GetSpellInfo and safe(GetSpellInfo, 7620)) or "Fishing"
+    return "spell", name, "pesca"
+end
+ns.fishAction = fishAction
+
+local function makeFishButton()
+    if _G.WowPilotPesca or not CreateFrame then return end
+    local ok, b = pcall(CreateFrame, "Button", "WowPilotPesca", UIParent, "SecureActionButtonTemplate")
+    if not ok or not b then return end
+    b:RegisterForClicks("AnyUp", "AnyDown")
+    b:SetScript("PreClick", function(self)
+        if InCombatLockdown and InCombatLockdown() then return end
+        local kind, value = fishAction()
+        self:SetAttribute("type", kind)
+        self:SetAttribute("item", kind == "item" and value or nil)
+        self:SetAttribute("macrotext", kind == "macro" and value or nil)
+        self:SetAttribute("spell", kind == "spell" and value or nil)
+    end)
+end
+ns.makeFishButton = makeFishButton
+
 local f = CreateFrame("Frame")
 f:RegisterEvent("ADDON_LOADED")
 f:RegisterEvent("PLAYER_LOGIN")
@@ -1334,6 +1375,7 @@ f:SetScript("OnEvent", function(_, event, arg1, ...)
         if GAME ~= "retail" and RequestTimePlayed then
             C_Timer.After(6, function() if not played then pcall(RequestTimePlayed) end end)
         end
+        pcall(makeFishButton)   -- /click WowPilotPesca
         C_Timer.After(3, queueGroupInspect)  -- após /reload o evento de grupo não dispara
         C_Timer.After(3, trackRoster)
 

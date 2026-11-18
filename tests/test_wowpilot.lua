@@ -138,4 +138,21 @@ T["pesca: lances, saque de pesca, iscas e sessão"] = function()
     _G.IsFishingLoot, _G.GetNumLootItems, _G.GetLootSlotLink, _G.GetLootSlotInfo, _G.GetSubZoneText, _G.GetRealZoneText = nil, nil, nil, nil, nil, nil
 end
 
+T["botão de pesca: marisco, depois isca (se a vara está sem), depois lança"] = function()
+    boot()
+    local bag = { [7973] = 1, [6533] = 2 }
+    _G.GetItemCount = function(id) return bag[id] or 0 end
+    _G.GetWeaponEnchantInfo = function() return false end
+    _G.GetSpellInfo = function() return "Pesca" end
+    local k, v = NS.fishAction()
+    assert(k == "item" and v == "item:7973", "abre o marisco primeiro")
+    bag[7973] = 0
+    k, v = NS.fishAction()
+    assert(k == "macro" and v:find("item:6533") and v:find("/use 16"), "põe a isca +100 na vara")
+    _G.GetWeaponEnchantInfo = function() return true end
+    k, v = NS.fishAction()
+    assert(k == "spell" and v == "Pesca", "com isca: lança")
+    _G.GetItemCount, _G.GetWeaponEnchantInfo, _G.GetSpellInfo = nil, nil, nil
+end
+
 return T
