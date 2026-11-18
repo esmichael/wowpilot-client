@@ -21,7 +21,9 @@ def run(with_rxp):
 def main():
     assert run(False) == [], "sem RXP não registra nada"
     g = run(True)
-    assert len(g) == 3, g
+    assert len(g) == 4, g
+    vara = g[3]   # Grande Vara de Ferro: volta pelas Armadilhas de Lagostim
+    assert ".collect 6367,1" in vara and ".loop " in vara and "Desolace" in vara
     text = g[0]
     for tag in ("#classic", "#forever", "#name ", "#group WowPilot", ".accept 6607", ".turnin 6607", ".train 18248"):
         assert tag in text, tag
@@ -36,7 +38,7 @@ def main():
     for q in (189, 213, 605, 575, 577, 628, 209, 600):
         assert f".accept {q}" in butim and f".turnin {q}" in butim and f".complete {q},1" in butim, q
     assert "#next " + re.search(r"#name (.+)", g[2])[1] in g[1]
-    for t in g[1:]:
+    for t in g[1:3]:
         assert set(re.findall(r"\.goto ([^,]+),", t)) == {"Stranglethorn Vale"}
         assert all(l.startswith(("step", "    ", "#", "<<")) for l in t.strip().splitlines() if l.strip())
     print("guides OK")

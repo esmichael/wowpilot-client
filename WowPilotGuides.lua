@@ -291,3 +291,23 @@ step
     .turnin 600 >>Entregue "Mineração da Empreendimentos S.A."
     .target Crank Fizzlebub
 ]])
+
+-- Grande Vara de Pescar de Ferro (+20 Pesca): sai em 1,5% das Armadilhas de Lagostim (CMaNGOS), debaixo d'água na Praia
+-- de Sar'theris; 11 armadilhas, cada uma volta em 3 min. A volta é a mais curta pelas 11 (Questie), fechando o circuito.
+R.RegisterGuide([[
+#classic
+#forever
+#group WowPilot
+#name Pesca: Grande Vara de Ferro (Desolação)
+#displayname Pesca: Grande Vara de Ferro
+#guideKind profession
+
+step
+    #sticky
+    +|cRXP_WARN_Use Respiração Aquática. Abra cada Armadilha de Lagostim no fundo (a vara sai em ~1,5%; em média ~67 armadilhas). Cada uma volta em 3 min: siga a volta sem parar.|r
+step
+    .goto Desolace,20.03,73.59
+    .loop 15,Desolace,20.03,73.59,19.80,76.16,17.97,76.27,18.88,77.19,20.16,79.16,19.45,81.96,20.91,82.61,23.14,80.97,24.32,77.44,23.35,77.13,20.74,75.00,20.03,73.59
+    >>Abra as |cRXP_PICK_Armadilhas de Lagostim|r debaixo d'água na |cRXP_PICK_Praia de Sar'theris|r, em volta, até sair a vara
+    .collect 6367,1 --Grande Vara de Pescar de Ferro
+]])
